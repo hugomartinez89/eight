@@ -50,7 +50,13 @@ interface SleepCycle {
   wakeupTime: Date;
 }
 
-function createSleepCycle(baseDate: Date, bedTimeStr: string, wakeupTimeStr: string, finalSleepLevelStartTimeStr: string = "06:00"): SleepCycle {
+function createSleepCycle(
+  baseDate: Date,
+  bedTimeStr: string,
+  wakeupTimeStr: string,
+  midStageSleepLevelStartTimeStr: string = "23:00",
+  finalSleepLevelStartTimeStr: string = "06:00",
+): SleepCycle {
   const preHeatingTime = createDateWithTime(baseDate, bedTimeStr);
   preHeatingTime.setHours(preHeatingTime.getHours() - 1);
 
@@ -61,10 +67,19 @@ function createSleepCycle(baseDate: Date, bedTimeStr: string, wakeupTimeStr: str
     wakeupTime = addDays(wakeupTime, 1);
   }
 
-  const midStageTime = new Date(bedTime.getTime() + 60 * 60 * 1000);
+  let midStageTime = createDateWithTime(baseDate, midStageSleepLevelStartTimeStr);
+  if (midStageTime <= bedTime) {
+    midStageTime = addDays(midStageTime, 1);
+  }
+  if (midStageTime >= wakeupTime) {
+    midStageTime = new Date(bedTime.getTime() + 60 * 60 * 1000);
+  }
 
   let finalStageTime = createDateWithTime(baseDate, finalSleepLevelStartTimeStr);
-  if (finalStageTime <= bedTime || finalStageTime >= wakeupTime) {
+  if (finalStageTime <= bedTime) {
+    finalStageTime = addDays(finalStageTime, 1);
+  }
+  if (finalStageTime >= wakeupTime || finalStageTime <= midStageTime) {
     finalStageTime = new Date(wakeupTime.getTime() - 60 * 60 * 1000);
   }
 
@@ -130,6 +145,7 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
           userNow,
           userTemperatureProfile.bedTime,
           userTemperatureProfile.wakeupTime,
+          userTemperatureProfile.midStageSleepLevelStartTime ?? "23:00",
           userTemperatureProfile.finalSleepLevelStartTime ?? "06:00",
         );
 

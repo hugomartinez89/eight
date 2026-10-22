@@ -10,6 +10,7 @@ import { Button } from "./ui/button";
 const temperatureProfileSchema = z.object({
   bedTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
   wakeupTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
+  midStageSleepLevelStartTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
   finalSleepLevelStartTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
   initialSleepLevel: z.number().min(-10).max(10),
   midStageSleepLevel: z.number().min(-10).max(10),
@@ -41,6 +42,7 @@ export const TemperatureProfileForm: React.FC = () => {
     defaultValues: {
       bedTime: "22:00",
       wakeupTime: "06:00",
+      midStageSleepLevelStartTime: "23:00",
       finalSleepLevelStartTime: "06:00",
       initialSleepLevel: 0,
       midStageSleepLevel: 0,
@@ -51,6 +53,7 @@ export const TemperatureProfileForm: React.FC = () => {
 
   const bedTime = watch("bedTime");
   const wakeupTime = watch("wakeupTime");
+  const midStageSleepLevelStartTime = watch("midStageSleepLevelStartTime");
   const finalSleepLevelStartTime = watch("finalSleepLevelStartTime");
 
   const [sleepInfo, setSleepInfo] = useState({
@@ -66,6 +69,12 @@ export const TemperatureProfileForm: React.FC = () => {
       const profile = getUserTemperatureProfileQuery.data;
       setValue("bedTime", profile.bedTime.slice(0, 5));
       setValue("wakeupTime", profile.wakeupTime.slice(0, 5));
+      setValue(
+        "midStageSleepLevelStartTime",
+        profile.midStageSleepLevelStartTime
+          ? profile.midStageSleepLevelStartTime.slice(0, 5)
+          : "23:00",
+      );
       setValue(
         "finalSleepLevelStartTime",
         profile.finalSleepLevelStartTime ? profile.finalSleepLevelStartTime.slice(0, 5) : "06:00",
@@ -101,15 +110,21 @@ export const TemperatureProfileForm: React.FC = () => {
         setSleepInfo({ duration: "", midStageTime: "", finalStageTime: "" });
       } else {
         setSleepDurationError(null);
-        const midStageDate = new Date(bedDate.getTime() + 60 * 60 * 1000);
+        const midStageDate = new Date(`2000-01-01T${midStageSleepLevelStartTime ?? "23:00"}:00`);
         const finalStageCandidate = new Date(`2000-01-01T${finalSleepLevelStartTime ?? "06:00"}:00`);
+
+        if (midStageDate <= bedDate) {
+          midStageDate.setDate(midStageDate.getDate() + 1);
+        }
+        if (midStageDate >= wakeDate) {
+          midStageDate.setTime(bedDate.getTime() + 60 * 60 * 1000);
+        }
 
         if (finalStageCandidate <= bedDate) {
           finalStageCandidate.setDate(finalStageCandidate.getDate() + 1);
         }
-
-        if (finalStageCandidate >= wakeDate) {
-          finalStageCandidate.setDate(finalStageCandidate.getDate() - 1);
+        if (finalStageCandidate >= wakeDate || finalStageCandidate <= midStageDate) {
+          finalStageCandidate.setTime(wakeDate.getTime() - 60 * 60 * 1000);
         }
 
         setSleepInfo({
@@ -119,7 +134,7 @@ export const TemperatureProfileForm: React.FC = () => {
         });
       }
     }
-  }, [bedTime, wakeupTime, finalSleepLevelStartTime]);
+  }, [bedTime, wakeupTime, midStageSleepLevelStartTime, finalSleepLevelStartTime]);
 
   const updateProfileMutation =
     apiR.user.updateUserTemperatureProfile.useMutation({
@@ -154,6 +169,7 @@ export const TemperatureProfileForm: React.FC = () => {
     const mutationData = {
       bedTime: formatTimeForAPI(data.bedTime),
       wakeupTime: formatTimeForAPI(data.wakeupTime),
+      midStageSleepLevelStartTime: formatTimeForAPI(data.midStageSleepLevelStartTime),
       finalSleepLevelStartTime: formatTimeForAPI(data.finalSleepLevelStartTime),
       initialSleepLevel: Math.round(data.initialSleepLevel * 10),
       midStageSleepLevel: Math.round(data.midStageSleepLevel * 10),
@@ -284,6 +300,25 @@ export const TemperatureProfileForm: React.FC = () => {
           {errors.wakeupTime && (
             <p className="mt-1 text-sm text-red-600">
               {errors.wakeupTime.message}
+            </p>
+          )}
+        </div>
+        <div>
+          <label
+            htmlFor="midStageSleepLevelStartTime"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Mid-Stage Sleep Level Start Time
+          </label>
+          <input
+            {...register("midStageSleepLevelStartTime")}
+            type="time"
+            id="midStageSleepLevelStartTime"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+          />
+          {errors.midStageSleepLevelStartTime && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.midStageSleepLevelStartTime.message}
             </p>
           )}
         </div>
