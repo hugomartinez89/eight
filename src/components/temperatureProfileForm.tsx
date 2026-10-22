@@ -303,44 +303,6 @@ export const TemperatureProfileForm: React.FC = () => {
             </p>
           )}
         </div>
-        <div>
-          <label
-            htmlFor="midStageSleepLevelStartTime"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Mid-Stage Sleep Level Start Time
-          </label>
-          <input
-            {...register("midStageSleepLevelStartTime")}
-            type="time"
-            id="midStageSleepLevelStartTime"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          />
-          {errors.midStageSleepLevelStartTime && (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.midStageSleepLevelStartTime.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label
-            htmlFor="finalSleepLevelStartTime"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Final Sleep Level Start Time
-          </label>
-          <input
-            {...register("finalSleepLevelStartTime")}
-            type="time"
-            id="finalSleepLevelStartTime"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          />
-          {errors.finalSleepLevelStartTime && (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.finalSleepLevelStartTime.message}
-            </p>
-          )}
-        </div>
 
         <div className="rounded-md bg-blue-50 p-4">
           {sleepDurationError ? (
@@ -350,6 +312,8 @@ export const TemperatureProfileForm: React.FC = () => {
               Sleep Duration: {sleepInfo.duration}
               <br />
               Bed will prepare for sleep one hour before the bed time.
+              <br />
+              Set each stage level and when it should start below.
             </p>
           )}
         </div>
@@ -358,20 +322,62 @@ export const TemperatureProfileForm: React.FC = () => {
           name="initialSleepLevel"
           label="Initial Sleep Level"
           control={control}
-          info={`Starts at ${bedTime}`}
+          info={`Starts at bed time (${bedTime})`}
         />
-        <SliderInput
-          name="midStageSleepLevel"
-          label="Mid-Stage Sleep Level"
-          control={control}
-          info={`Starts at ${sleepInfo.midStageTime}`}
-        />
-        <SliderInput
-          name="finalSleepLevel"
-          label="Final Sleep Level"
-          control={control}
-          info={`Starts at ${sleepInfo.finalStageTime}`}
-        />
+
+        <div className="rounded-md border border-gray-200 p-3">
+          <SliderInput
+            name="midStageSleepLevel"
+            label="Mid-Stage Sleep Level"
+            control={control}
+          />
+          <div>
+            <label
+              htmlFor="midStageSleepLevelStartTime"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Mid-Stage Start Time
+            </label>
+            <input
+              {...register("midStageSleepLevelStartTime")}
+              type="time"
+              id="midStageSleepLevelStartTime"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            />
+            {errors.midStageSleepLevelStartTime && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.midStageSleepLevelStartTime.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-gray-200 p-3">
+          <SliderInput
+            name="finalSleepLevel"
+            label="Final Sleep Level"
+            control={control}
+          />
+          <div>
+            <label
+              htmlFor="finalSleepLevelStartTime"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Final Stage Start Time
+            </label>
+            <input
+              {...register("finalSleepLevelStartTime")}
+              type="time"
+              id="finalSleepLevelStartTime"
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            />
+            {errors.finalSleepLevelStartTime && (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.finalSleepLevelStartTime.message}
+              </p>
+            )}
+          </div>
+        </div>
 
         <div className="flex justify-between">
           <Button
