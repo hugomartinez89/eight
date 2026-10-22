@@ -225,6 +225,7 @@ export const userRouter = createTRPCRouter({
         initialSleepLevel: z.number().int().min(-100).max(100),
         midStageSleepLevel: z.number().int().min(-100).max(100),
         finalSleepLevel: z.number().int().min(-100).max(100),
+        finalSleepLevelStartTime: z.string().time(),
         timezoneTZ: z.string().max(50),
       }),
     )
@@ -238,6 +239,7 @@ export const userRouter = createTRPCRouter({
           initialSleepLevel: input.initialSleepLevel,
           midStageSleepLevel: input.midStageSleepLevel,
           finalSleepLevel: input.finalSleepLevel,
+          finalSleepLevelStartTime: input.finalSleepLevelStartTime,
           timezoneTZ: input.timezoneTZ,
           updatedAt: new Date(),
         };
@@ -254,6 +256,7 @@ export const userRouter = createTRPCRouter({
               initialSleepLevel: input.initialSleepLevel,
               midStageSleepLevel: input.midStageSleepLevel,
               finalSleepLevel: input.finalSleepLevel,
+              finalSleepLevelStartTime: input.finalSleepLevelStartTime,
               timezoneTZ: input.timezoneTZ,
               updatedAt: new Date(),
             },

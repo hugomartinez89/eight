@@ -10,6 +10,7 @@ import { Button } from "./ui/button";
 const temperatureProfileSchema = z.object({
   bedTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
   wakeupTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
+  finalSleepLevelStartTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
   initialSleepLevel: z.number().min(-10).max(10),
   midStageSleepLevel: z.number().min(-10).max(10),
   finalSleepLevel: z.number().min(-10).max(10),
@@ -40,6 +41,7 @@ export const TemperatureProfileForm: React.FC = () => {
     defaultValues: {
       bedTime: "22:00",
       wakeupTime: "06:00",
+      finalSleepLevelStartTime: "06:00",
       initialSleepLevel: 0,
       midStageSleepLevel: 0,
       finalSleepLevel: 0,
@@ -49,6 +51,7 @@ export const TemperatureProfileForm: React.FC = () => {
 
   const bedTime = watch("bedTime");
   const wakeupTime = watch("wakeupTime");
+  const finalSleepLevelStartTime = watch("finalSleepLevelStartTime");
 
   const [sleepInfo, setSleepInfo] = useState({
     duration: "",
@@ -57,13 +60,16 @@ export const TemperatureProfileForm: React.FC = () => {
   });
 
   const getUserTemperatureProfileQuery = apiR.user.getUserTemperatureProfile.useQuery();
-  
 
   useEffect(() => {
     if (getUserTemperatureProfileQuery.isSuccess) {
       const profile = getUserTemperatureProfileQuery.data;
       setValue("bedTime", profile.bedTime.slice(0, 5));
       setValue("wakeupTime", profile.wakeupTime.slice(0, 5));
+      setValue(
+        "finalSleepLevelStartTime",
+        profile.finalSleepLevelStartTime ? profile.finalSleepLevelStartTime.slice(0, 5) : "06:00",
+      );
       setValue("initialSleepLevel", profile.initialSleepLevel / 10);
       setValue("midStageSleepLevel", profile.midStageSleepLevel / 10);
       setValue("finalSleepLevel", profile.finalSleepLevel / 10);
@@ -90,29 +96,36 @@ export const TemperatureProfileForm: React.FC = () => {
       const hours = Math.floor(durationMs / (1000 * 60 * 60));
       const minutes = Math.round((durationMs % (1000 * 60 * 60)) / (1000 * 60));
 
-      // Check if sleep duration is less than 4 hours
       if (hours < 4 ) {
         setSleepDurationError("Sleep duration must be at least 4 hours.");
         setSleepInfo({ duration: "", midStageTime: "", finalStageTime: "" });
       } else {
         setSleepDurationError(null);
-        const midStageDate = new Date(bedDate.getTime() + 60 * 60 * 1000); // 1 hour after bedtime
-        const finalStageDate = new Date(wakeDate.getTime() - 2 * 60 * 60 * 1000); // 2 hours before wakeup
+        const midStageDate = new Date(bedDate.getTime() + 60 * 60 * 1000);
+        const finalStageCandidate = new Date(`2000-01-01T${finalSleepLevelStartTime ?? "06:00"}:00`);
+
+        if (finalStageCandidate <= bedDate) {
+          finalStageCandidate.setDate(finalStageCandidate.getDate() + 1);
+        }
+
+        if (finalStageCandidate >= wakeDate) {
+          finalStageCandidate.setDate(finalStageCandidate.getDate() - 1);
+        }
 
         setSleepInfo({
           duration: `${hours} hours ${minutes} minutes`,
           midStageTime: midStageDate.toTimeString().slice(0, 5),
-          finalStageTime: finalStageDate.toTimeString().slice(0, 5),
+          finalStageTime: finalStageCandidate.toTimeString().slice(0, 5),
         });
       }
     }
-  }, [bedTime, wakeupTime]);
+  }, [bedTime, wakeupTime, finalSleepLevelStartTime]);
 
   const updateProfileMutation =
     apiR.user.updateUserTemperatureProfile.useMutation({
       onSuccess: () => {
         console.log("Temperature profile updated successfully");
-        setIsExistingProfile(true); // Update the state after successful creation/update
+        setIsExistingProfile(true);
       },
       onError: (error) => {
         console.error("Failed to update temperature profile:", error.message);
@@ -124,7 +137,7 @@ export const TemperatureProfileForm: React.FC = () => {
       onSuccess: () => {
         console.log("Temperature profile deleted successfully");
         setIsExistingProfile(false);
-        reset(); // Reset form to default values
+        reset();
       },
       onError: (error) => {
         console.error("Failed to delete temperature profile:", error.message);
@@ -133,7 +146,7 @@ export const TemperatureProfileForm: React.FC = () => {
 
   const onSubmit = (data: TemperatureProfileForm) => {
     if (sleepDurationError) {
-      return; // Prevent submission if there's a sleep duration error
+      return;
     }
 
     const formatTimeForAPI = (time: string) => `${time}:00.000000`;
@@ -141,6 +154,7 @@ export const TemperatureProfileForm: React.FC = () => {
     const mutationData = {
       bedTime: formatTimeForAPI(data.bedTime),
       wakeupTime: formatTimeForAPI(data.wakeupTime),
+      finalSleepLevelStartTime: formatTimeForAPI(data.finalSleepLevelStartTime),
       initialSleepLevel: Math.round(data.initialSleepLevel * 10),
       midStageSleepLevel: Math.round(data.midStageSleepLevel * 10),
       finalSleepLevel: Math.round(data.finalSleepLevel * 10),
@@ -273,6 +287,25 @@ export const TemperatureProfileForm: React.FC = () => {
             </p>
           )}
         </div>
+        <div>
+          <label
+            htmlFor="finalSleepLevelStartTime"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Final Sleep Level Start Time
+          </label>
+          <input
+            {...register("finalSleepLevelStartTime")}
+            type="time"
+            id="finalSleepLevelStartTime"
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+          />
+          {errors.finalSleepLevelStartTime && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.finalSleepLevelStartTime.message}
+            </p>
+          )}
+        </div>
 
         <div className="rounded-md bg-blue-50 p-4">
           {sleepDurationError ? (
@@ -308,7 +341,7 @@ export const TemperatureProfileForm: React.FC = () => {
         <div className="flex justify-between">
           <Button
             type="submit"
-            className="flex-grow rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            className="flex-grow rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-indigo-300"
             disabled={updateProfileMutation.isPending || !!sleepDurationError}
           >
             {updateProfileMutation.isPending ? "Updating..." : (isExistingProfile ? "Update" : "Create") + " Profile"}
@@ -317,7 +350,7 @@ export const TemperatureProfileForm: React.FC = () => {
             <Button
               type="button"
               onClick={onDelete}
-              className="ml-4 rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              className="ml-4 rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-red-300"
               disabled={deleteProfileMutation.isPending}
             >
               {deleteProfileMutation.isPending ? "Deleting..." : "Delete Schedule"}

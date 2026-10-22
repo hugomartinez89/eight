@@ -50,37 +50,38 @@ interface SleepCycle {
   wakeupTime: Date;
 }
 
-function createSleepCycle(baseDate: Date, bedTimeStr: string, wakeupTimeStr: string): SleepCycle {
+function createSleepCycle(baseDate: Date, bedTimeStr: string, wakeupTimeStr: string, finalSleepLevelStartTimeStr: string = "06:00"): SleepCycle {
   const preHeatingTime = createDateWithTime(baseDate, bedTimeStr);
-  preHeatingTime.setHours(preHeatingTime.getHours() - 1); // Set pre-heating to 1 hour before bedtime
-  
+  preHeatingTime.setHours(preHeatingTime.getHours() - 1);
+
   const bedTime = createDateWithTime(baseDate, bedTimeStr);
   let wakeupTime = createDateWithTime(baseDate, wakeupTimeStr);
-  
-  // Adjust wakeupTime if it's before bedTime (i.e., it's on the next day)
+
   if (wakeupTime <= bedTime) {
     wakeupTime = addDays(wakeupTime, 1);
   }
-  
+
   const midStageTime = new Date(bedTime.getTime() + 60 * 60 * 1000);
-  const finalStageTime = new Date(wakeupTime.getTime() - 2 * 60 * 60 * 1000);
-  
+
+  let finalStageTime = createDateWithTime(baseDate, finalSleepLevelStartTimeStr);
+  if (finalStageTime <= bedTime || finalStageTime >= wakeupTime) {
+    finalStageTime = new Date(wakeupTime.getTime() - 60 * 60 * 1000);
+  }
+
   return { preHeatingTime, bedTime, midStageTime, finalStageTime, wakeupTime };
 }
 
 function adjustTimeToCurrentCycle(cycleStart: Date, currentTime: Date, timeInCycle: Date): Date {
   let adjustedTime = new Date(timeInCycle);
-  
-  // If the time in the cycle is before the cycle start, it means it's on the next day
+
   if (timeInCycle < cycleStart) {
     adjustedTime = addDays(adjustedTime, 1);
   }
-  
-  // If the adjusted time is in the future relative to the current time, move it back by one day
+
   if (adjustedTime > currentTime && adjustedTime.getTime() - currentTime.getTime() > 12 * 60 * 60 * 1000) {
     adjustedTime = addDays(adjustedTime, -1);
   }
-  
+
   return adjustedTime;
 }
 
@@ -125,10 +126,13 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
         const userTemperatureProfile = profile.userTemperatureProfiles;
         const userNow = new Date(now.toLocaleString("en-US", { timeZone: userTemperatureProfile.timezoneTZ }));
 
-        // Create the sleep cycle based on the user's bed time and wake-up time
-        const sleepCycle = createSleepCycle(userNow, userTemperatureProfile.bedTime, userTemperatureProfile.wakeupTime);
+        const sleepCycle = createSleepCycle(
+          userNow,
+          userTemperatureProfile.bedTime,
+          userTemperatureProfile.wakeupTime,
+          userTemperatureProfile.finalSleepLevelStartTime ?? "06:00",
+        );
 
-        // Adjust all times in the cycle to the current day
         const cycleStart = sleepCycle.preHeatingTime;
         const adjustedCycle: SleepCycle = {
           preHeatingTime: adjustTimeToCurrentCycle(cycleStart, userNow, sleepCycle.preHeatingTime),
@@ -140,7 +144,7 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
 
         let heatingStatus;
         if (testMode?.enabled) {
-          heatingStatus = { isHeating: false, heatingLevel: 0 }; // Mock heating status for test mode
+          heatingStatus = { isHeating: false, heatingLevel: 0 };
           console.log(`[TEST MODE] Current time set to: ${userNow.toISOString()}`);
         } else {
           heatingStatus = await retryApiCall(() => getCurrentHeatingStatus(token));
@@ -161,7 +165,6 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
         const isNearFinalStage = isWithinTimeRange(userNow, adjustedCycle.finalStageTime, 15);
         const isNearWakeup = isWithinTimeRange(userNow, adjustedCycle.wakeupTime, 15);
 
-        // Determine current sleep stage
         let currentSleepStage = "outside sleep cycle";
         if (userNow >= adjustedCycle.preHeatingTime && userNow < adjustedCycle.bedTime) {
           currentSleepStage = "pre-heating";
@@ -212,7 +215,6 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
             }
           }
         } else if (heatingStatus.isHeating && userNow > adjustedCycle.wakeupTime && !isWithinTimeRange(userNow, adjustedCycle.wakeupTime, 15)) {
-          // Only turn off heating if it's more than 15 minutes past wake-up time
           if (testMode?.enabled) {
             console.log(`[TEST MODE] Would turn off heating for user ${profile.users.email}`);
           } else {
