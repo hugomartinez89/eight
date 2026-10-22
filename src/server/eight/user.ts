@@ -16,6 +16,7 @@ import {
   UserProfileSchema,
   type UserProfile,
   type HeatingStatus,
+  type HeatingLevel,
 } from "./types";
 import {
   CLIENT_API_URL,
@@ -89,6 +90,47 @@ export async function setAwayMode(
     method: "PUT",
     body: JSON.stringify(bodyData),
   });
+}
+
+export type PodDisplayStatus = {
+  isOn: boolean;
+  isHeating: boolean;
+  heatingLevel: HeatingLevel;
+  targetHeatingLevel: HeatingLevel;
+  temperatureC: number | null;
+  temperatureF: number | null;
+};
+
+export async function getPodDisplayStatus(
+  token: Token,
+): Promise<PodDisplayStatus> {
+  const heatingStatus = await getCurrentHeatingStatus(token);
+
+  let isOn = heatingStatus.isHeating;
+  try {
+    const bedState = await getBedStateType(token);
+    isOn = bedState !== "off";
+  } catch (error) {
+    console.error("Unable to read pod power state, falling back to heating status:", error);
+  }
+
+  let temperatureC: number | null = null;
+  let temperatureF: number | null = null;
+  try {
+    temperatureC = convertRawBedTempToDegrees(heatingStatus.heatingLevel, "c");
+    temperatureF = convertRawBedTempToDegrees(heatingStatus.heatingLevel, "f");
+  } catch (error) {
+    console.error("Unable to convert pod heating level to degrees:", error);
+  }
+
+  return {
+    isOn,
+    isHeating: heatingStatus.isHeating,
+    heatingLevel: heatingStatus.heatingLevel,
+    targetHeatingLevel: heatingStatus.targetHeatingLevel,
+    temperatureC,
+    temperatureF,
+  };
 }
 
 export async function getCurrentHeatingStatus(

@@ -179,7 +179,9 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
         const isNearBedTime = isWithinTimeRange(userNow, adjustedCycle.bedTime, 15);
         const isNearMidStage = isWithinTimeRange(userNow, adjustedCycle.midStageTime, 15);
         const isNearFinalStage = isWithinTimeRange(userNow, adjustedCycle.finalStageTime, 15);
-        const isNearWakeup = isWithinTimeRange(userNow, adjustedCycle.wakeupTime, 15);
+        const shouldBeOff =
+          userNow < adjustedCycle.preHeatingTime ||
+          userNow >= adjustedCycle.wakeupTime;
 
         let currentSleepStage = "outside sleep cycle";
         if (userNow >= adjustedCycle.preHeatingTime && userNow < adjustedCycle.bedTime) {
@@ -194,7 +196,18 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
 
         console.log(`Current sleep stage for user ${profile.users.email}: ${currentSleepStage}`);
 
-        if (isNearPreHeating || isNearBedTime || isNearMidStage || isNearFinalStage || isNearWakeup) {
+        if (shouldBeOff) {
+          if (heatingStatus.isHeating) {
+            if (testMode?.enabled) {
+              console.log(`[TEST MODE] Would turn off heating for user ${profile.users.email} at wake-up / off period`);
+            } else {
+              await retryApiCall(() => turnOffSide(token, profile.users.eightUserId));
+              console.log(`Heating turned off for user ${profile.users.email} (at or after wake-up, or before pre-heat)`);
+            }
+          } else {
+            console.log(`Pod already off for user ${profile.users.email} (outside sleep cycle)`);
+          }
+        } else if (isNearPreHeating || isNearBedTime || isNearMidStage || isNearFinalStage) {
           let targetLevel: number;
           let sleepStage: string;
 
@@ -229,13 +242,6 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
               await retryApiCall(() => setHeatingLevel(token, profile.users.eightUserId, targetLevel));
               console.log(`Heating level set to ${targetLevel} for user ${profile.users.email}`);
             }
-          }
-        } else if (heatingStatus.isHeating && userNow > adjustedCycle.wakeupTime && !isWithinTimeRange(userNow, adjustedCycle.wakeupTime, 15)) {
-          if (testMode?.enabled) {
-            console.log(`[TEST MODE] Would turn off heating for user ${profile.users.email}`);
-          } else {
-            await retryApiCall(() => turnOffSide(token, profile.users.eightUserId));
-            console.log(`Heating turned off for user ${profile.users.email}`);
           }
         } else {
           console.log(`No temperature change needed for user ${profile.users.email}`);

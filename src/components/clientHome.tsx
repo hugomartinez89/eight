@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EightLoginDialog } from "~/components/eightLogin";
 import { TemperatureProfileForm } from "~/components/temperatureProfileForm";
 import { LogoutButton } from "~/components/logout";
+import { PodStatus } from "~/components/podStatus";
 
 export default function ClientHome({
   initialLoginState,
@@ -27,6 +28,7 @@ export default function ClientHome({
               <div className="mx-auto flex w-full flex-row items-center justify-center rounded-lg bg-white p-6 shadow-xl">
                 <LogoutButton onLogoutSuccess={() => setIsLoggedIn(false)} />
               </div>
+              <PodStatus />
               <TemperatureProfileForm />
             </>
           )}

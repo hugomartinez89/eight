@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { type Token } from "~/server/eight/types";
 import { TRPCError } from "@trpc/server";
 import { adjustTemperature } from "~/app/api/temperatureCron/route";
+import { getPodDisplayStatus } from "~/server/eight/user";
 import jwt from "jsonwebtoken";
 
 class DatabaseError extends Error {
@@ -187,6 +188,66 @@ export const userRouter = createTRPCRouter({
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "An unexpected error occurred during logout.",
+      });
+    }
+  }),
+
+  getPodStatus: publicProcedure.query(async ({ ctx }) => {
+    try {
+      const decoded = await checkAuthCookie(ctx.headers);
+
+      const userList = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, decoded.email))
+        .execute();
+
+      const user = userList[0];
+      if (userList.length !== 1 || user === undefined) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "User not found.",
+        });
+      }
+
+      let token: Token = {
+        eightAccessToken: user.eightAccessToken,
+        eightRefreshToken: user.eightRefreshToken,
+        eightExpiresAtPosix: user.eightTokenExpiresAt.getTime(),
+        eightUserId: user.eightUserId,
+      };
+
+      if (user.eightTokenExpiresAt < new Date()) {
+        token = await obtainFreshAccessToken(
+          token.eightRefreshToken,
+          token.eightUserId,
+        );
+        await db
+          .update(users)
+          .set({
+            eightAccessToken: token.eightAccessToken,
+            eightRefreshToken: token.eightRefreshToken,
+            eightTokenExpiresAt: new Date(token.eightExpiresAtPosix),
+          })
+          .where(eq(users.email, decoded.email))
+          .execute();
+      }
+
+      return await getPodDisplayStatus(token);
+    } catch (error) {
+      console.error("Error fetching pod status:", error);
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+      if (error instanceof AuthError) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: error.message,
+        });
+      }
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred while fetching pod status.",
       });
     }
   }),
