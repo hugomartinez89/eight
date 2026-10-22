@@ -26,7 +26,7 @@ In the following, I will explain how to self-host this webapp on Vercel so that 
     - In the project, click the "Storage" Tab
     - Click "Create Database"
     - Select "Postgres", then "accept", then "create", then "connect" (all defaults are fine in between)
-    - Connecting Postgres should add both `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`. The build uses the non-pooling URL for `db:push` so it does not hang on "Pulling schema from database".
+    - Connecting Postgres should add both `POSTGRES_URL` and `POSTGRES_URL_NON_POOLING`. Build-time `db:push` runs `scripts/db-push.mjs` (SQL + 60s timeout) using the non-pooling URL so it does not hang on drizzle-kit "Pulling schema from database".
 8. Rebuild project
     - In the project, click the "Deployments" Tab.
     - Select the 3 dots next to the previously failed build and click "Redeploy"

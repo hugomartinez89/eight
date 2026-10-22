@@ -7,8 +7,8 @@ const sslConfig =
     ? undefined
     : { rejectUnauthorized: false };
 
-// drizzle-kit introspects via a direct TCP connection. Neon/Vercel pooled
-// URLs (PgBouncer) hang at "Pulling schema from database" during Vercel builds.
+// Prefer the direct DB URL for drizzle-kit. Pooled PgBouncer URLs hang at
+// "Pulling schema from database". Vercel builds use scripts/db-push.mjs instead.
 const databaseUrl = env.POSTGRES_URL_NON_POOLING ?? env.POSTGRES_URL;
 
 export default {
