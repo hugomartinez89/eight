@@ -8,6 +8,7 @@ export const env = createEnv({
    */
   server: {
     POSTGRES_URL: z.string().url(),
+    POSTGRES_URL_NON_POOLING: z.string().url().optional(),
     POSTGRES_SSL: z
       .enum(["true", "false", "require", "disable"])
       .default("true"),
@@ -34,6 +35,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     POSTGRES_URL: process.env.POSTGRES_URL,
+    POSTGRES_URL_NON_POOLING: process.env.POSTGRES_URL_NON_POOLING,
     POSTGRES_SSL: process.env.POSTGRES_SSL,
     NODE_ENV: process.env.NODE_ENV,
     CRON_SECRET: process.env.CRON_SECRET,
