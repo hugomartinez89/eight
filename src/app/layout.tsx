@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   title: "Hugo's Pod Hub | Smart Scheduling & Pod Manager",
   description:
     "Smart scheduling, wake-up thermal alarm, and direct mattress controls for Eight Sleep without subscriptions.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: [
+    { rel: "icon", url: "/favicon.svg", type: "image/svg+xml" },
+    { rel: "apple-touch-icon", url: "/icon.svg" },
+  ],
 };
 
 export default function RootLayout({

@@ -99,12 +99,21 @@ export type PodDisplayStatus = {
   targetHeatingLevel: HeatingLevel;
   temperatureC: number | null;
   temperatureF: number | null;
+  side?: string | null;
 };
 
 export async function getPodDisplayStatus(
   token: Token,
 ): Promise<PodDisplayStatus> {
   const heatingStatus = await getCurrentHeatingStatus(token);
+
+  let side: string | null = null;
+  try {
+    const userProfile = await getUserProfile(token);
+    side = userProfile.currentDevice.side;
+  } catch (error) {
+    console.error("Unable to read user profile side:", error);
+  }
 
   let isOn = heatingStatus.isHeating;
   try {
@@ -130,6 +139,7 @@ export async function getPodDisplayStatus(
     targetHeatingLevel: heatingStatus.targetHeatingLevel,
     temperatureC,
     temperatureF,
+    side,
   };
 }
 

@@ -228,7 +228,7 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
               console.log(`Heating turned on for wake-up alarm for user ${profile.users.email}`);
             }
           }
-          if (heatingStatus.heatingLevel !== targetLevel) {
+          if (heatingStatus.targetHeatingLevel !== targetLevel && heatingStatus.heatingLevel !== targetLevel) {
             if (testMode?.enabled) {
               console.log(`[TEST MODE] Would set wake-up alarm heating level to ${targetLevel} for user ${profile.users.email}`);
             } else {
@@ -236,17 +236,18 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
               console.log(`Wake-up alarm heating level set to ${targetLevel} for user ${profile.users.email}`);
             }
           }
-        } else if (isNearPreHeating || isNearBedTime || isNearMidStage || isNearFinalStage) {
+        } else {
+          // Inside the active sleep cycle and pre-heating window
           let targetLevel: number;
           let sleepStage: string;
 
-          if (isNearPreHeating || (isNearBedTime && userNow < adjustedCycle.bedTime)) {
+          if (userNow >= adjustedCycle.preHeatingTime && userNow < adjustedCycle.bedTime) {
             targetLevel = userTemperatureProfile.initialSleepLevel;
             sleepStage = "pre-heating";
-          } else if (isNearBedTime || (isNearMidStage && userNow < adjustedCycle.midStageTime)) {
+          } else if (userNow >= adjustedCycle.bedTime && userNow < adjustedCycle.midStageTime) {
             targetLevel = userTemperatureProfile.initialSleepLevel;
             sleepStage = "initial";
-          } else if (isNearMidStage || (isNearFinalStage && userNow < adjustedCycle.finalStageTime)) {
+          } else if (userNow >= adjustedCycle.midStageTime && userNow < adjustedCycle.finalStageTime) {
             targetLevel = userTemperatureProfile.midStageSleepLevel;
             sleepStage = "mid";
           } else {
@@ -254,17 +255,17 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
             sleepStage = "final";
           }
 
-          console.log(`Adjusting temperature for ${sleepStage} stage for user ${profile.users.email}`);
+          console.log(`Adjusting temperature for ${sleepStage} stage (target=${targetLevel}) for user ${profile.users.email}`);
 
           if (!heatingStatus.isHeating) {
             if (testMode?.enabled) {
-              console.log(`[TEST MODE] Would turn on heating for user ${profile.users.email}`);
+              console.log(`[TEST MODE] Would turn on heating for user ${profile.users.email} in ${sleepStage}`);
             } else {
               await retryApiCall(() => turnOnSide(token, profile.users.eightUserId));
-              console.log(`Heating turned on for user ${profile.users.email}`);
+              console.log(`Heating turned on for user ${profile.users.email} in ${sleepStage}`);
             }
           }
-          if (heatingStatus.heatingLevel !== targetLevel) {
+          if (heatingStatus.targetHeatingLevel !== targetLevel && heatingStatus.heatingLevel !== targetLevel) {
             if (testMode?.enabled) {
               console.log(`[TEST MODE] Would set heating level to ${targetLevel} for user ${profile.users.email}`);
             } else {
@@ -272,8 +273,6 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
               console.log(`Heating level set to ${targetLevel} for user ${profile.users.email}`);
             }
           }
-        } else {
-          console.log(`No temperature change needed for user ${profile.users.email}`);
         }
 
         console.log(`Successfully completed temperature adjustment check for user ${profile.users.email}`);

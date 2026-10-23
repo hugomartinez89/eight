@@ -5,11 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiR } from "~/trpc/react";
-import { Moon, LogIn, Lock, Mail, ShieldCheck } from "lucide-react";
+import { LogIn, ArrowRight } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type EightLoginDialog = z.infer<typeof loginSchema>;
@@ -21,22 +21,17 @@ interface EightLoginDialogProps {
 export const EightLoginDialog: React.FC<EightLoginDialogProps> = ({
   onLoginSuccess,
 }) => {
-  const form = useForm<EightLoginDialog>({
-    resolver: zodResolver(loginSchema),
-  });
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = form;
+  } = useForm<EightLoginDialog>({
+    resolver: zodResolver(loginSchema),
+  });
 
   const loginMutation = apiR.user.login.useMutation({
     onSuccess: () => {
-      console.log("Login successful");
       onLoginSuccess();
-    },
-    onError: (error: { message: unknown }) => {
-      console.error("Login failed:", error.message);
     },
   });
 
@@ -45,91 +40,69 @@ export const EightLoginDialog: React.FC<EightLoginDialogProps> = ({
   };
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-8 shadow-xl transition-colors dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-2xl/50">
+    <div className="mx-auto w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white/95 p-8 shadow-2xl backdrop-blur-2xl transition-all dark:border-slate-800/80 dark:bg-slate-900/90">
+      {/* Brand Icon Header */}
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white shadow-lg shadow-indigo-500/25">
-          <Moon className="h-6 w-6" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          Sign In to Eight Sleep
+        <img
+          src="/icon.svg"
+          alt="Hugo's Pod Hub"
+          className="mx-auto h-16 w-16 rounded-2xl shadow-xl shadow-indigo-500/20 ring-1 ring-white/10"
+        />
+        <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+          Hugo&apos;s Pod Hub
         </h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Connect your account to control your mattress without a subscription
+          Sign in with your Eight Sleep account
         </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label
-            htmlFor="email"
-            className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
-          >
-            Eight Sleep Email
-          </label>
-          <div className="relative mt-1">
-            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-              <Mail className="h-4 w-4" />
-            </span>
-            <input
-              {...register("email")}
-              type="email"
-              id="email"
-              placeholder="you@example.com"
-              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-white dark:focus:bg-slate-800"
-            />
-          </div>
+          <input
+            {...register("email")}
+            type="email"
+            id="email"
+            autoComplete="email"
+            placeholder="Account Email"
+            className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800/90"
+          />
           {errors.email && (
-            <p className="mt-1 text-xs text-rose-500">{errors.email.message}</p>
+            <p className="mt-1.5 pl-1 text-xs text-rose-500">{errors.email.message}</p>
           )}
         </div>
 
         <div>
-          <label
-            htmlFor="password"
-            className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
-          >
-            Password
-          </label>
-          <div className="relative mt-1">
-            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-              <Lock className="h-4 w-4" />
-            </span>
-            <input
-              {...register("password")}
-              type="password"
-              id="password"
-              placeholder="••••••••"
-              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800/60 dark:text-white dark:focus:bg-slate-800"
-            />
-          </div>
+          <input
+            {...register("password")}
+            type="password"
+            id="password"
+            autoComplete="current-password"
+            placeholder="Account Password"
+            className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800/90"
+          />
           {errors.password && (
-            <p className="mt-1 text-xs text-rose-500">
+            <p className="mt-1.5 pl-1 text-xs text-rose-500">
               {errors.password.message}
             </p>
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={loginMutation.isPending}
-          className="mt-2 inline-flex w-full items-center justify-center space-x-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition hover:from-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
-        >
-          <LogIn className="h-4 w-4" />
-          <span>{loginMutation.isPending ? "Connecting..." : "Connect Pod"}</span>
-        </button>
-
         {loginMutation.isError && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center text-xs text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-center text-xs text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
             {typeof loginMutation.error.message === "string"
               ? loginMutation.error.message
-              : "Login failed. Please check your credentials."}
+              : "Invalid credentials. Please verify your email and password."}
           </div>
         )}
 
-        <div className="flex items-center justify-center space-x-1.5 pt-2 text-[11px] text-slate-400">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          <span>Credentials are stored securely in your private Postgres instance</span>
-        </div>
+        <button
+          type="submit"
+          disabled={loginMutation.isPending}
+          className="group relative mt-2 inline-flex w-full items-center justify-center space-x-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition-all hover:from-indigo-500 hover:to-purple-500 focus:outline-none active:scale-98 disabled:opacity-50"
+        >
+          <span>{loginMutation.isPending ? "Signing in..." : "Sign In to Pod"}</span>
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        </button>
       </form>
     </div>
   );
