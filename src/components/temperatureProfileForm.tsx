@@ -5,7 +5,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiR } from "~/trpc/react";
 import TimezoneSelect, { allTimezones } from "react-timezone-select";
-import { Button } from "./ui/button";
+import {
+  CalendarDays,
+  Clock,
+  Moon,
+  Sun,
+  Flame,
+  Snowflake,
+  Trash2,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  BellRing,
+} from "lucide-react";
 
 const temperatureProfileSchema = z.object({
   bedTime: z.string().regex(/^\d{2}:\d{2}$/, "Must be in HH:MM format"),
@@ -31,6 +43,7 @@ export const TemperatureProfileForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isExistingProfile, setIsExistingProfile] = useState(false);
   const [sleepDurationError, setSleepDurationError] = useState<string | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<boolean>(false);
 
   const {
     register,
@@ -145,7 +158,7 @@ export const TemperatureProfileForm: React.FC = () => {
         }
 
         setSleepInfo({
-          duration: `${hours} hours ${minutes} minutes`,
+          duration: `${hours}h ${minutes}m`,
           midStageTime: midStageDate.toTimeString().slice(0, 5),
           finalStageTime: finalStageCandidate.toTimeString().slice(0, 5),
         });
@@ -156,8 +169,9 @@ export const TemperatureProfileForm: React.FC = () => {
   const updateProfileMutation =
     apiR.user.updateUserTemperatureProfile.useMutation({
       onSuccess: () => {
-        console.log("Temperature profile updated successfully");
         setIsExistingProfile(true);
+        setSaveSuccessMessage(true);
+        setTimeout(() => setSaveSuccessMessage(false), 3000);
       },
       onError: (error) => {
         console.error("Failed to update temperature profile:", error.message);
@@ -167,7 +181,6 @@ export const TemperatureProfileForm: React.FC = () => {
   const deleteProfileMutation =
     apiR.user.deleteUserTemperatureProfile.useMutation({
       onSuccess: () => {
-        console.log("Temperature profile deleted successfully");
         setIsExistingProfile(false);
         reset();
       },
@@ -197,8 +210,6 @@ export const TemperatureProfileForm: React.FC = () => {
       timezoneTZ: data.timezone.value,
     };
 
-    console.log("Data being sent to server:", mutationData);
-
     updateProfileMutation.mutate(mutationData);
   };
 
@@ -214,15 +225,36 @@ export const TemperatureProfileForm: React.FC = () => {
     control: Control<TemperatureProfileForm>;
     info?: string;
   }> = ({ name, label, control, info }) => (
-    <div className="mb-4">
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-        {label}
-      </label>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label htmlFor={name} className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+          {label}
+        </label>
+        <Controller
+          name={name}
+          control={control}
+          render={({ field: { value } }) => (
+            <span
+              className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+                value > 0
+                  ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300"
+                  : value < 0
+                  ? "bg-sky-100 text-sky-800 dark:bg-sky-950/70 dark:text-sky-300"
+                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+            >
+              {value > 0 ? `+${value}` : value}
+            </span>
+          )}
+        />
+      </div>
+
       <Controller
         name={name}
         control={control}
         render={({ field: { onChange, value } }) => (
-          <div className="flex items-center">
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400">-10</span>
             <input
               type="range"
               min="-10"
@@ -230,223 +262,277 @@ export const TemperatureProfileForm: React.FC = () => {
               step="1"
               value={value}
               onChange={(e) => onChange(Number(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-indigo-600"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-indigo-600 dark:bg-slate-700"
             />
-            <span className="ml-2 w-8 text-right text-sm font-semibold text-gray-700">
-              {value > 0 ? `+${value}` : value}
-            </span>
+            <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">+10</span>
           </div>
         )}
       />
-      {info && <p className="mt-1 text-xs text-blue-600">{info}</p>}
+      {info && <p className="text-[11px] text-slate-500 dark:text-slate-400">{info}</p>}
       {errors[name] && (
-        <p className="mt-1 text-sm text-red-600">{errors[name]?.message}</p>
+        <p className="text-xs text-rose-500">{errors[name]?.message}</p>
       )}
     </div>
   );
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex h-64 items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl dark:border-slate-800/80 dark:bg-slate-900">
+        <p className="text-sm text-slate-400">Loading temperature profile...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto mt-8 max-w-md rounded-lg bg-white p-6 shadow-xl">
-      <h2 className="mb-4 text-center text-2xl font-bold text-gray-800">
-        {isExistingProfile ? "Update" : "Create"} Temperature Profile
-      </h2>
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="space-y-4 text-gray-800"
-      >
+    <div className="w-full rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl transition-colors dark:border-slate-800/80 dark:bg-slate-900 dark:shadow-2xl/40">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center space-x-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/70 dark:text-purple-400">
+            <CalendarDays className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Night Schedule
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isExistingProfile ? "Active profile configured" : "Set up your schedule"}
+            </p>
+          </div>
+        </div>
+
+        {saveSuccessMessage && (
+          <span className="inline-flex items-center space-x-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>Saved</span>
+          </span>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {/* Timezone */}
         <div>
           <label
             htmlFor="timezone"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
           >
             Timezone
           </label>
-          <Controller
-            name="timezone"
-            control={control}
-            render={({ field }) => (
-              <TimezoneSelect
-                value={field.value}
-                onChange={field.onChange}
-                timezones={{
-                  ...allTimezones,
-                  "America/New_York": "America/New York",
-                  "America/Los_Angeles": "America/Los Angeles",
-                }}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-            )}
-          />
+          <div className="mt-1">
+            <Controller
+              name="timezone"
+              control={control}
+              render={({ field }) => (
+                <TimezoneSelect
+                  value={field.value}
+                  onChange={field.onChange}
+                  timezones={{
+                    ...allTimezones,
+                    "America/New_York": "America/New York",
+                    "America/Los_Angeles": "America/Los Angeles",
+                  }}
+                  className="timezone-selector text-sm"
+                />
+              )}
+            />
+          </div>
           {errors.timezone && (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-xs text-rose-500">
               {errors.timezone.message}
             </p>
           )}
         </div>
-        <div>
-          <label
-            htmlFor="bedTime"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Bed Time
-          </label>
-          <input
-            {...register("bedTime")}
-            type="time"
-            id="bedTime"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          />
-          {errors.bedTime && (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.bedTime.message}
-            </p>
-          )}
-        </div>
-        <div>
-          <label
-            htmlFor="wakeupTime"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Wake-up Time
-          </label>
-          <input
-            {...register("wakeupTime")}
-            type="time"
-            id="wakeupTime"
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-          />
-          {errors.wakeupTime && (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.wakeupTime.message}
-            </p>
-          )}
-        </div>
 
-        <div className="rounded-md bg-blue-50 p-4">
-          {sleepDurationError ? (
-            <p className="text-sm text-red-600">{sleepDurationError}</p>
-          ) : (
-            <p className="text-sm text-blue-800">
-              Sleep Duration: {sleepInfo.duration}
-              <br />
-              Bed will prepare for sleep one hour before the bed time.
-              <br />
-              Set each stage level and when it should start below.
-            </p>
-          )}
-        </div>
-
-        <SliderInput
-          name="initialSleepLevel"
-          label="Initial Sleep Level"
-          control={control}
-          info={`Starts at bed time (${bedTime})`}
-        />
-
-        <div className="rounded-md border border-gray-200 p-3">
-          <SliderInput
-            name="midStageSleepLevel"
-            label="Mid-Stage Sleep Level"
-            control={control}
-          />
-          <div>
-            <label
-              htmlFor="midStageSleepLevelStartTime"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Mid-Stage Start Time
-            </label>
+        {/* Schedule Times (Bed & Wake) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+            <div className="flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+              <Moon className="h-4 w-4 text-indigo-500" />
+              <label htmlFor="bedTime" className="text-xs font-semibold">
+                Bed Time
+              </label>
+            </div>
             <input
-              {...register("midStageSleepLevelStartTime")}
+              {...register("bedTime")}
               type="time"
-              id="midStageSleepLevelStartTime"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+              id="bedTime"
+              className="mt-2 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
-            {errors.midStageSleepLevelStartTime && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.midStageSleepLevelStartTime.message}
-              </p>
+            {errors.bedTime && (
+              <p className="mt-1 text-xs text-rose-500">{errors.bedTime.message}</p>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
+            <div className="flex items-center space-x-1.5 text-slate-700 dark:text-slate-300">
+              <Sun className="h-4 w-4 text-amber-500" />
+              <label htmlFor="wakeupTime" className="text-xs font-semibold">
+                Wake-up Time
+              </label>
+            </div>
+            <input
+              {...register("wakeupTime")}
+              type="time"
+              id="wakeupTime"
+              className="mt-2 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+            {errors.wakeupTime && (
+              <p className="mt-1 text-xs text-rose-500">{errors.wakeupTime.message}</p>
             )}
           </div>
         </div>
 
-        <div className="rounded-md border border-gray-200 p-3">
-          <SliderInput
-            name="finalSleepLevel"
-            label="Final Sleep Level"
-            control={control}
-          />
-          <div>
-            <label
-              htmlFor="finalSleepLevelStartTime"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Final Stage Start Time
-            </label>
-            <input
-              {...register("finalSleepLevelStartTime")}
-              type="time"
-              id="finalSleepLevelStartTime"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+        {/* Sleep Duration Banner */}
+        <div
+          className={`flex items-start space-x-2.5 rounded-xl border p-3 text-xs ${
+            sleepDurationError
+              ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+              : "border-indigo-100 bg-indigo-50/70 text-indigo-900 dark:border-indigo-950/60 dark:bg-indigo-950/30 dark:text-indigo-200"
+          }`}
+        >
+          {sleepDurationError ? (
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+          ) : (
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+          )}
+          <div className="space-y-0.5">
+            {sleepDurationError ? (
+              <p className="font-semibold">{sleepDurationError}</p>
+            ) : (
+              <>
+                <p className="font-semibold">
+                  Total sleep window: {sleepInfo.duration}
+                </p>
+                <p className="text-[11px] opacity-80">
+                  Pre-heating automatically initiates 1 hour before bedtime ({bedTime}).
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Staging Levels */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Night Temperature Stages
+          </h3>
+
+          {/* Initial Stage */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 dark:border-slate-800 dark:bg-slate-800/30">
+            <SliderInput
+              name="initialSleepLevel"
+              label="Stage 1: Initial Bedtime Level"
+              control={control}
+              info={`Starts immediately at bed time (${bedTime})`}
             />
+          </div>
+
+          {/* Mid Stage */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 dark:border-slate-800 dark:bg-slate-800/30">
+            <SliderInput
+              name="midStageSleepLevel"
+              label="Stage 2: Mid-Stage Sleep Level"
+              control={control}
+            />
+            <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5 dark:border-slate-700/60">
+              <label
+                htmlFor="midStageSleepLevelStartTime"
+                className="text-xs font-medium text-slate-600 dark:text-slate-400"
+              >
+                Mid-Stage Start Time:
+              </label>
+              <input
+                {...register("midStageSleepLevelStartTime")}
+                type="time"
+                id="midStageSleepLevelStartTime"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
+            {errors.midStageSleepLevelStartTime && (
+              <p className="mt-1 text-xs text-rose-500">
+                {errors.midStageSleepLevelStartTime.message}
+              </p>
+            )}
+          </div>
+
+          {/* Final Stage */}
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 dark:border-slate-800 dark:bg-slate-800/30">
+            <SliderInput
+              name="finalSleepLevel"
+              label="Stage 3: Final Sleep Level"
+              control={control}
+            />
+            <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2.5 dark:border-slate-700/60">
+              <label
+                htmlFor="finalSleepLevelStartTime"
+                className="text-xs font-medium text-slate-600 dark:text-slate-400"
+              >
+                Final Stage Start Time:
+              </label>
+              <input
+                {...register("finalSleepLevelStartTime")}
+                type="time"
+                id="finalSleepLevelStartTime"
+                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              />
+            </div>
             {errors.finalSleepLevelStartTime && (
-              <p className="mt-1 text-sm text-red-600">
+              <p className="mt-1 text-xs text-rose-500">
                 {errors.finalSleepLevelStartTime.message}
               </p>
             )}
           </div>
         </div>
 
-        {/* Wake-Up Thermal Alarm Section */}
-        <div className="rounded-md border border-indigo-100 bg-indigo-50/30 p-4">
+        {/* Wake-Up Thermal Alarm Card */}
+        <div className="rounded-xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/80 to-purple-50/40 p-4 dark:border-indigo-900/60 dark:from-indigo-950/40 dark:to-purple-950/20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">
-                Wake-Up Thermal Alarm
-              </h3>
-              <p className="text-xs text-gray-500">
-                Warm or cool the bed before wake-up to gently wake you up
-              </p>
+            <div className="flex items-center space-x-2">
+              <BellRing className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Wake-Up Thermal Alarm
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Gradual temperature shift before your alarm to wake up refreshed
+                </p>
+              </div>
             </div>
+
             <label className="relative inline-flex cursor-pointer items-center">
               <input
                 type="checkbox"
                 {...register("wakeupAlarmEnabled")}
                 className="peer sr-only"
               />
-              <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+              <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:bg-slate-700"></div>
             </label>
           </div>
 
           {wakeupAlarmEnabled && (
-            <div className="mt-4 space-y-4 border-t border-gray-200 pt-3">
+            <div className="mt-4 space-y-4 border-t border-indigo-200/60 pt-3 dark:border-indigo-900/60">
               <SliderInput
                 name="wakeupAlarmLevel"
-                label="Wake-Up Temperature Level"
+                label="Wake-Up Temperature"
                 control={control}
-                info="Temperature applied during the wake-up window (e.g. +2 to +4 to gently warm you awake)"
+                info="Target thermal level during alarm window (e.g. +2 to +4 to gently warm you awake)"
               />
-              <div>
+
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label
-                    htmlFor="wakeupAlarmLeadMinutes"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Alarm Window Duration
-                  </label>
-                  <span className="text-xs font-semibold text-indigo-700">
-                    Starts {wakeupAlarmLeadMinutes ?? 30} min before wake-up
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Alarm Window Lead Time
+                  </span>
+                  <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300">
+                    {wakeupAlarmLeadMinutes ?? 30} min before wake-up
                   </span>
                 </div>
+
                 <Controller
                   name="wakeupAlarmLeadMinutes"
                   control={control}
                   render={({ field: { onChange, value } }) => (
-                    <div className="mt-1 flex items-center">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-semibold text-slate-400">5m</span>
                       <input
                         type="range"
                         min="5"
@@ -454,15 +540,13 @@ export const TemperatureProfileForm: React.FC = () => {
                         step="5"
                         value={value}
                         onChange={(e) => onChange(Number(e.target.value))}
-                        className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-indigo-600"
+                        className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-indigo-600 dark:bg-slate-700"
                       />
-                      <span className="ml-3 w-12 text-right text-xs font-semibold text-gray-700">
-                        {value}m
-                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400">60m</span>
                     </div>
                   )}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Eight Sleep officially uses a 30-minute window for gradual physical warming.
                 </p>
               </div>
@@ -470,35 +554,39 @@ export const TemperatureProfileForm: React.FC = () => {
           )}
         </div>
 
-        <div className="flex justify-between">
-          <Button
-            type="submit"
-            className="flex-grow rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-indigo-300"
-            disabled={updateProfileMutation.isPending || !!sleepDurationError}
-          >
-            {updateProfileMutation.isPending ? "Updating..." : (isExistingProfile ? "Update" : "Create") + " Profile"}
-          </Button>
-          {isExistingProfile && (
-            <Button
+        {/* Buttons */}
+        <div className="flex items-center justify-between pt-2">
+          {isExistingProfile ? (
+            <button
               type="button"
               onClick={onDelete}
-              className="ml-4 rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-red-300"
               disabled={deleteProfileMutation.isPending}
+              className="inline-flex items-center space-x-1.5 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/60"
             >
-              {deleteProfileMutation.isPending ? "Deleting..." : "Delete Schedule"}
-            </Button>
-          )}
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{deleteProfileMutation.isPending ? "Deleting..." : "Delete"}</span>
+            </button>
+          ) : <div />}
+
+          <button
+            type="submit"
+            disabled={updateProfileMutation.isPending || !!sleepDurationError}
+            className="inline-flex items-center space-x-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all hover:from-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            <span>
+              {updateProfileMutation.isPending
+                ? "Saving..."
+                : isExistingProfile
+                ? "Update Profile"
+                : "Save Profile"}
+            </span>
+          </button>
         </div>
+
         {updateProfileMutation.isError && (
-          <p className="mt-4 text-center text-sm text-red-600">
-            Error updating profile. Please try again.
-            {updateProfileMutation.error.message}
-          </p>
-        )}
-        {deleteProfileMutation.isError && (
-          <p className="mt-4 text-center text-sm text-red-600">
-            Error deleting profile. Please try again.
-            {deleteProfileMutation.error.message}
+          <p className="text-center text-xs text-rose-500">
+            Error saving profile: {updateProfileMutation.error.message}
           </p>
         )}
       </form>

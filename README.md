@@ -1,6 +1,7 @@
-# Eight Sleep Control App
+# Hugo's Pod Hub
+*Smart Scheduling & Pod Manager*
 
-This WebApp is an alternative interface to control any Eight Sleep mattress. It gives the user the ability to schedule the temperature throughout the night without the need for an Eight Sleep subscription. This is achieved by not using Eight Sleep's "Smart Scheduling" feature, but instead running a recurring script every 30 minutes to adjust the temperature based on the schedule. If you share your mattress, both of you will be able to log in to your accounts and control your side of the mattress.
+This WebApp is an alternative interface to control any Eight Sleep mattress. It gives the user the ability to schedule the temperature throughout the night without the need for an Eight Sleep subscription. This is achieved by not using Eight Sleep's "Smart Scheduling" feature, but instead running a recurring script every 30 minutes to adjust the temperature based on the schedule. If you share your mattress, both of you will be able to log in to your accounts and control your side of the mattress. Includes live manual controls (turn on/off, target temperature slider), wake-up thermal alarm, and Light/Dark/System theme support.
 
 <img src="eightsleep-nosub-app.png" alt="Eight Sleep No-Subscription App" width="500">
 
@@ -57,6 +58,8 @@ Check the [Release Notes](https://github.com/aerotow/eightsleep-nosub-app/releas
 
 ## Credits
 
+- **Original Project:** Created by @aerotow ([eightsleep-nosub-app](https://github.com/aerotow/eightsleep-nosub-app)).
+- **Modifications:** Enhanced by Hugo's AI with instant pod controls (on/off, live temperature slider), Wake-Up Thermal Alarm, and modern responsive Light/Dark/System theme UI.
 - Thanks to @lukas-clarke for his Home Assistant package eight_sleep and pyEight which gave me the idea of the possibility to use the API of the app.
 - Thanks also to @mezz64 for the initial work on his pyEight package.
 - Thanks to the @t3-oss team for the great T3 boilerplate on which this codebase is based.

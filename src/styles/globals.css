@@ -67,3 +67,35 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* React Timezone Select Dark Mode Styling */
+.dark .timezone-selector [class*="-control"] {
+  background-color: rgb(30 41 59 / 0.6);
+  border-color: rgb(51 65 85);
+  color: white;
+}
+.dark .timezone-selector [class*="-singleValue"] {
+  color: rgb(241 245 249);
+}
+.dark .timezone-selector [class*="-placeholder"] {
+  color: rgb(148 163 184);
+}
+.dark .timezone-selector [class*="-menu"] {
+  background-color: rgb(15 23 42);
+  border: 1px solid rgb(51 65 85);
+  color: rgb(241 245 249);
+}
+.dark .timezone-selector [class*="-option"] {
+  background-color: transparent;
+  color: rgb(226 232 240);
+}
+.dark .timezone-selector [class*="-option"]:hover {
+  background-color: rgb(30 41 59);
+}
+.dark .timezone-selector [class*="-option"][class*="-is-selected"] {
+  background-color: rgb(79 70 229);
+  color: white;
+}
+.dark .timezone-selector [class*="-input"] input {
+  color: white !important;
+}
