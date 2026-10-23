@@ -13,6 +13,7 @@ import { type Token } from "~/server/eight/types";
 import { TRPCError } from "@trpc/server";
 import { adjustTemperature } from "~/app/api/temperatureCron/route";
 import { getPodDisplayStatus } from "~/server/eight/user";
+import { setHeatingLevel, turnOffSide, turnOnSide } from "~/server/eight/eight";
 import jwt from "jsonwebtoken";
 
 class DatabaseError extends Error {

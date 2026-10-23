@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS "8slp_userTemperatureProfiles" (
   "midStageSleepLevelStartTime" time DEFAULT '23:00' NOT NULL,
   "finalSleepLevel" integer NOT NULL,
   "finalSleepLevelStartTime" time DEFAULT '06:00' NOT NULL,
+  "wakeupAlarmEnabled" boolean DEFAULT false NOT NULL,
+  "wakeupAlarmLevel" integer DEFAULT 0 NOT NULL,
+  "wakeupAlarmLeadMinutes" integer DEFAULT 30 NOT NULL,
   "created_at" timestamp DEFAULT now() NOT NULL,
   "updated_at" timestamp DEFAULT now() NOT NULL,
   "timezone" varchar(50) NOT NULL

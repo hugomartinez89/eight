@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   integer,
   pgTableCreator,
   text,
@@ -29,6 +30,9 @@ export const userTemperatureProfile = createTable("userTemperatureProfiles", {
   midStageSleepLevelStartTime: time("midStageSleepLevelStartTime").notNull(),
   finalSleepLevel: integer("finalSleepLevel").notNull(),
   finalSleepLevelStartTime: time("finalSleepLevelStartTime").notNull(),
+  wakeupAlarmEnabled: boolean("wakeupAlarmEnabled").default(false).notNull(),
+  wakeupAlarmLevel: integer("wakeupAlarmLevel").default(0).notNull(),
+  wakeupAlarmLeadMinutes: integer("wakeupAlarmLeadMinutes").default(30).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   timezoneTZ: varchar("timezone", { length: 50 }).notNull(),

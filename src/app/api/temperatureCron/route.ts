@@ -196,16 +196,45 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
 
         console.log(`Current sleep stage for user ${profile.users.email}: ${currentSleepStage}`);
 
+        const alarmLeadMinutes = userTemperatureProfile.wakeupAlarmLeadMinutes ?? 30;
+        const alarmStartTime = new Date(
+          adjustedCycle.wakeupTime.getTime() - alarmLeadMinutes * 60 * 1000,
+        );
+        const inWakeupAlarmWindow =
+          userTemperatureProfile.wakeupAlarmEnabled &&
+          userNow >= alarmStartTime &&
+          userNow < adjustedCycle.wakeupTime;
+
+        console.log(
+          `Wake-up alarm for user ${profile.users.email}: enabled=${userTemperatureProfile.wakeupAlarmEnabled}, window=${inWakeupAlarmWindow}, start=${alarmStartTime.toISOString()}`,
+        );
+
         if (shouldBeOff) {
-          if (heatingStatus.isHeating) {
-            if (testMode?.enabled) {
-              console.log(`[TEST MODE] Would turn off heating for user ${profile.users.email} at wake-up / off period`);
-            } else {
-              await retryApiCall(() => turnOffSide(token, profile.users.eightUserId));
-              console.log(`Heating turned off for user ${profile.users.email} (at or after wake-up, or before pre-heat)`);
-            }
+          if (testMode?.enabled) {
+            console.log(`[TEST MODE] Would turn off heating for user ${profile.users.email} at wake-up / off period`);
           } else {
-            console.log(`Pod already off for user ${profile.users.email} (outside sleep cycle)`);
+            await retryApiCall(() => turnOffSide(token, profile.users.eightUserId));
+            console.log(`Heating turned off for user ${profile.users.email} (at or after wake-up, or before pre-heat)`);
+          }
+        } else if (inWakeupAlarmWindow) {
+          const targetLevel = userTemperatureProfile.wakeupAlarmLevel;
+          console.log(`Applying wake-up alarm temperature ${targetLevel} for user ${profile.users.email}`);
+
+          if (!heatingStatus.isHeating) {
+            if (testMode?.enabled) {
+              console.log(`[TEST MODE] Would turn on heating for wake-up alarm for user ${profile.users.email}`);
+            } else {
+              await retryApiCall(() => turnOnSide(token, profile.users.eightUserId));
+              console.log(`Heating turned on for wake-up alarm for user ${profile.users.email}`);
+            }
+          }
+          if (heatingStatus.heatingLevel !== targetLevel) {
+            if (testMode?.enabled) {
+              console.log(`[TEST MODE] Would set wake-up alarm heating level to ${targetLevel} for user ${profile.users.email}`);
+            } else {
+              await retryApiCall(() => setHeatingLevel(token, profile.users.eightUserId, targetLevel));
+              console.log(`Wake-up alarm heating level set to ${targetLevel} for user ${profile.users.email}`);
+            }
           }
         } else if (isNearPreHeating || isNearBedTime || isNearMidStage || isNearFinalStage) {
           let targetLevel: number;
