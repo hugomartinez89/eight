@@ -15,6 +15,9 @@ const temperatureProfileSchema = z.object({
   initialSleepLevel: z.number().min(-10).max(10),
   midStageSleepLevel: z.number().min(-10).max(10),
   finalSleepLevel: z.number().min(-10).max(10),
+  wakeupAlarmEnabled: z.boolean(),
+  wakeupAlarmLevel: z.number().min(-10).max(10),
+  wakeupAlarmLeadMinutes: z.number().min(5).max(60),
   timezone: z.object({
     value: z.string(),
     altName: z.string().optional(),
@@ -47,7 +50,10 @@ export const TemperatureProfileForm: React.FC = () => {
       initialSleepLevel: 0,
       midStageSleepLevel: 0,
       finalSleepLevel: 0,
-      timezone: { value: "America/New_York"},
+      wakeupAlarmEnabled: false,
+      wakeupAlarmLevel: 2,
+      wakeupAlarmLeadMinutes: 30,
+      timezone: { value: "America/New_York" },
     },
   });
 
@@ -55,6 +61,8 @@ export const TemperatureProfileForm: React.FC = () => {
   const wakeupTime = watch("wakeupTime");
   const midStageSleepLevelStartTime = watch("midStageSleepLevelStartTime");
   const finalSleepLevelStartTime = watch("finalSleepLevelStartTime");
+  const wakeupAlarmEnabled = watch("wakeupAlarmEnabled");
+  const wakeupAlarmLeadMinutes = watch("wakeupAlarmLeadMinutes");
 
   const [sleepInfo, setSleepInfo] = useState({
     duration: "",
@@ -82,6 +90,9 @@ export const TemperatureProfileForm: React.FC = () => {
       setValue("initialSleepLevel", profile.initialSleepLevel / 10);
       setValue("midStageSleepLevel", profile.midStageSleepLevel / 10);
       setValue("finalSleepLevel", profile.finalSleepLevel / 10);
+      setValue("wakeupAlarmEnabled", profile.wakeupAlarmEnabled ?? false);
+      setValue("wakeupAlarmLevel", (profile.wakeupAlarmLevel ?? 20) / 10);
+      setValue("wakeupAlarmLeadMinutes", profile.wakeupAlarmLeadMinutes ?? 30);
       setValue("timezone", { value: profile.timezoneTZ });
       setIsExistingProfile(true);
       setIsLoading(false);
@@ -90,41 +101,47 @@ export const TemperatureProfileForm: React.FC = () => {
       setIsExistingProfile(false);
       setIsLoading(false);
     }
-  }, [getUserTemperatureProfileQuery.isSuccess, getUserTemperatureProfileQuery.isError, getUserTemperatureProfileQuery.data, setValue, getUserTemperatureProfileQuery.error]);
+  }, [
+    getUserTemperatureProfileQuery.isSuccess,
+    getUserTemperatureProfileQuery.isError,
+    getUserTemperatureProfileQuery.data,
+    setValue,
+    getUserTemperatureProfileQuery.error,
+  ]);
 
   useEffect(() => {
     if (bedTime && wakeupTime) {
       const bedDate = new Date(`2000-01-01T${bedTime}:00`);
-      const wakeDate = new Date(`2000-01-01T${wakeupTime}:00`);
+      let wakeDate = new Date(`2000-01-01T${wakeupTime}:00`);
 
       if (wakeDate <= bedDate) {
-        wakeDate.setDate(wakeDate.getDate() + 1);
+        wakeDate = new Date(wakeDate.getTime() + 24 * 60 * 60 * 1000);
       }
 
       const durationMs = wakeDate.getTime() - bedDate.getTime();
       const hours = Math.floor(durationMs / (1000 * 60 * 60));
       const minutes = Math.round((durationMs % (1000 * 60 * 60)) / (1000 * 60));
 
-      if (hours < 4 ) {
+      if (hours < 4) {
         setSleepDurationError("Sleep duration must be at least 4 hours.");
         setSleepInfo({ duration: "", midStageTime: "", finalStageTime: "" });
       } else {
         setSleepDurationError(null);
-        const midStageDate = new Date(`2000-01-01T${midStageSleepLevelStartTime ?? "23:00"}:00`);
-        const finalStageCandidate = new Date(`2000-01-01T${finalSleepLevelStartTime ?? "06:00"}:00`);
+        let midStageDate = new Date(`2000-01-01T${midStageSleepLevelStartTime ?? "23:00"}:00`);
+        let finalStageCandidate = new Date(`2000-01-01T${finalSleepLevelStartTime ?? "06:00"}:00`);
 
         if (midStageDate <= bedDate) {
-          midStageDate.setDate(midStageDate.getDate() + 1);
+          midStageDate = new Date(midStageDate.getTime() + 24 * 60 * 60 * 1000);
         }
         if (midStageDate >= wakeDate) {
-          midStageDate.setTime(bedDate.getTime() + 60 * 60 * 1000);
+          midStageDate = new Date(bedDate.getTime() + 60 * 60 * 1000);
         }
 
         if (finalStageCandidate <= bedDate) {
-          finalStageCandidate.setDate(finalStageCandidate.getDate() + 1);
+          finalStageCandidate = new Date(finalStageCandidate.getTime() + 24 * 60 * 60 * 1000);
         }
         if (finalStageCandidate >= wakeDate || finalStageCandidate <= midStageDate) {
-          finalStageCandidate.setTime(wakeDate.getTime() - 60 * 60 * 1000);
+          finalStageCandidate = new Date(wakeDate.getTime() - 60 * 60 * 1000);
         }
 
         setSleepInfo({
@@ -174,10 +191,13 @@ export const TemperatureProfileForm: React.FC = () => {
       initialSleepLevel: Math.round(data.initialSleepLevel * 10),
       midStageSleepLevel: Math.round(data.midStageSleepLevel * 10),
       finalSleepLevel: Math.round(data.finalSleepLevel * 10),
+      wakeupAlarmEnabled: data.wakeupAlarmEnabled,
+      wakeupAlarmLevel: Math.round(data.wakeupAlarmLevel * 10),
+      wakeupAlarmLeadMinutes: data.wakeupAlarmLeadMinutes,
       timezoneTZ: data.timezone.value,
     };
 
-    console.log('Data being sent to server:', mutationData);
+    console.log("Data being sent to server:", mutationData);
 
     updateProfileMutation.mutate(mutationData);
   };
@@ -189,7 +209,7 @@ export const TemperatureProfileForm: React.FC = () => {
   };
 
   const SliderInput: React.FC<{
-    name: "initialSleepLevel" | "midStageSleepLevel" | "finalSleepLevel";
+    name: "initialSleepLevel" | "midStageSleepLevel" | "finalSleepLevel" | "wakeupAlarmLevel";
     label: string;
     control: Control<TemperatureProfileForm>;
     info?: string;
@@ -210,13 +230,15 @@ export const TemperatureProfileForm: React.FC = () => {
               step="1"
               value={value}
               onChange={(e) => onChange(Number(e.target.value))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200"
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-indigo-600"
             />
-            <span className="ml-2 text-sm text-gray-600">{value}</span>
+            <span className="ml-2 w-8 text-right text-sm font-semibold text-gray-700">
+              {value > 0 ? `+${value}` : value}
+            </span>
           </div>
         )}
       />
-      {info && <p className="mt-1 text-sm text-blue-600">{info}</p>}
+      {info && <p className="mt-1 text-xs text-blue-600">{info}</p>}
       {errors[name] && (
         <p className="mt-1 text-sm text-red-600">{errors[name]?.message}</p>
       )}
@@ -377,6 +399,75 @@ export const TemperatureProfileForm: React.FC = () => {
               </p>
             )}
           </div>
+        </div>
+
+        {/* Wake-Up Thermal Alarm Section */}
+        <div className="rounded-md border border-indigo-100 bg-indigo-50/30 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">
+                Wake-Up Thermal Alarm
+              </h3>
+              <p className="text-xs text-gray-500">
+                Warm or cool the bed before wake-up to gently wake you up
+              </p>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                {...register("wakeupAlarmEnabled")}
+                className="peer sr-only"
+              />
+              <div className="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none"></div>
+            </label>
+          </div>
+
+          {wakeupAlarmEnabled && (
+            <div className="mt-4 space-y-4 border-t border-gray-200 pt-3">
+              <SliderInput
+                name="wakeupAlarmLevel"
+                label="Wake-Up Temperature Level"
+                control={control}
+                info="Temperature applied during the wake-up window (e.g. +2 to +4 to gently warm you awake)"
+              />
+              <div>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="wakeupAlarmLeadMinutes"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Alarm Window Duration
+                  </label>
+                  <span className="text-xs font-semibold text-indigo-700">
+                    Starts {wakeupAlarmLeadMinutes ?? 30} min before wake-up
+                  </span>
+                </div>
+                <Controller
+                  name="wakeupAlarmLeadMinutes"
+                  control={control}
+                  render={({ field: { onChange, value } }) => (
+                    <div className="mt-1 flex items-center">
+                      <input
+                        type="range"
+                        min="5"
+                        max="60"
+                        step="5"
+                        value={value}
+                        onChange={(e) => onChange(Number(e.target.value))}
+                        className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-indigo-600"
+                      />
+                      <span className="ml-3 w-12 text-right text-xs font-semibold text-gray-700">
+                        {value}m
+                      </span>
+                    </div>
+                  )}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Eight Sleep officially uses a 30-minute window for gradual physical warming.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between">

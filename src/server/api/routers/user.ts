@@ -51,6 +51,49 @@ const checkAuthCookie = async (headers: Headers) => {
   return decoded;
 };
 
+const getAuthUserAndToken = async (headers: Headers) => {
+  const decoded = await checkAuthCookie(headers);
+
+  const userList = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, decoded.email))
+    .execute();
+
+  const user = userList[0];
+  if (userList.length !== 1 || user === undefined) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "User not found.",
+    });
+  }
+
+  let token: Token = {
+    eightAccessToken: user.eightAccessToken,
+    eightRefreshToken: user.eightRefreshToken,
+    eightExpiresAtPosix: user.eightTokenExpiresAt.getTime(),
+    eightUserId: user.eightUserId,
+  };
+
+  if (user.eightTokenExpiresAt < new Date()) {
+    token = await obtainFreshAccessToken(
+      token.eightRefreshToken,
+      token.eightUserId,
+    );
+    await db
+      .update(users)
+      .set({
+        eightAccessToken: token.eightAccessToken,
+        eightRefreshToken: token.eightRefreshToken,
+        eightTokenExpiresAt: new Date(token.eightExpiresAtPosix),
+      })
+      .where(eq(users.email, decoded.email))
+      .execute();
+  }
+
+  return { user, token };
+};
+
 export const userRouter = createTRPCRouter({
   checkLoginState: publicProcedure.query(async ({ ctx }) => {
     try {
@@ -195,45 +238,7 @@ export const userRouter = createTRPCRouter({
 
   getPodStatus: publicProcedure.query(async ({ ctx }) => {
     try {
-      const decoded = await checkAuthCookie(ctx.headers);
-
-      const userList = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, decoded.email))
-        .execute();
-
-      const user = userList[0];
-      if (userList.length !== 1 || user === undefined) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "User not found.",
-        });
-      }
-
-      let token: Token = {
-        eightAccessToken: user.eightAccessToken,
-        eightRefreshToken: user.eightRefreshToken,
-        eightExpiresAtPosix: user.eightTokenExpiresAt.getTime(),
-        eightUserId: user.eightUserId,
-      };
-
-      if (user.eightTokenExpiresAt < new Date()) {
-        token = await obtainFreshAccessToken(
-          token.eightRefreshToken,
-          token.eightUserId,
-        );
-        await db
-          .update(users)
-          .set({
-            eightAccessToken: token.eightAccessToken,
-            eightRefreshToken: token.eightRefreshToken,
-            eightTokenExpiresAt: new Date(token.eightExpiresAtPosix),
-          })
-          .where(eq(users.email, decoded.email))
-          .execute();
-      }
-
+      const { token } = await getAuthUserAndToken(ctx.headers);
       return await getPodDisplayStatus(token);
     } catch (error) {
       console.error("Error fetching pod status:", error);
@@ -252,6 +257,58 @@ export const userRouter = createTRPCRouter({
       });
     }
   }),
+
+  setPodPower: publicProcedure
+    .input(z.object({ isOn: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { user, token } = await getAuthUserAndToken(ctx.headers);
+        if (input.isOn) {
+          await turnOnSide(token, user.eightUserId);
+        } else {
+          await turnOffSide(token, user.eightUserId);
+        }
+        return { success: true, isOn: input.isOn };
+      } catch (error) {
+        console.error("Error setting pod power:", error);
+        if (error instanceof TRPCError) throw error;
+        if (error instanceof AuthError) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: error.message });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to set pod power.",
+        });
+      }
+    }),
+
+  setPodTargetLevel: publicProcedure
+    .input(
+      z.object({
+        level: z.number().int().min(-100).max(100),
+        turnOn: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { user, token } = await getAuthUserAndToken(ctx.headers);
+        if (input.turnOn) {
+          await turnOnSide(token, user.eightUserId);
+        }
+        await setHeatingLevel(token, user.eightUserId, input.level);
+        return { success: true, level: input.level };
+      } catch (error) {
+        console.error("Error setting pod target level:", error);
+        if (error instanceof TRPCError) throw error;
+        if (error instanceof AuthError) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: error.message });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to set pod target level.",
+        });
+      }
+    }),
 
   getUserTemperatureProfile: publicProcedure.query(async ({ ctx }) => {
     try {
@@ -289,6 +346,9 @@ export const userRouter = createTRPCRouter({
         midStageSleepLevelStartTime: z.string().time(),
         finalSleepLevel: z.number().int().min(-100).max(100),
         finalSleepLevelStartTime: z.string().time(),
+        wakeupAlarmEnabled: z.boolean().optional(),
+        wakeupAlarmLevel: z.number().int().min(-100).max(100).optional(),
+        wakeupAlarmLeadMinutes: z.number().int().min(5).max(120).optional(),
         timezoneTZ: z.string().max(50),
       }),
     )
@@ -304,6 +364,9 @@ export const userRouter = createTRPCRouter({
           midStageSleepLevelStartTime: input.midStageSleepLevelStartTime,
           finalSleepLevel: input.finalSleepLevel,
           finalSleepLevelStartTime: input.finalSleepLevelStartTime,
+          wakeupAlarmEnabled: input.wakeupAlarmEnabled ?? false,
+          wakeupAlarmLevel: input.wakeupAlarmLevel ?? 0,
+          wakeupAlarmLeadMinutes: input.wakeupAlarmLeadMinutes ?? 30,
           timezoneTZ: input.timezoneTZ,
           updatedAt: new Date(),
         };
@@ -322,6 +385,9 @@ export const userRouter = createTRPCRouter({
               midStageSleepLevelStartTime: input.midStageSleepLevelStartTime,
               finalSleepLevel: input.finalSleepLevel,
               finalSleepLevelStartTime: input.finalSleepLevelStartTime,
+              wakeupAlarmEnabled: input.wakeupAlarmEnabled ?? false,
+              wakeupAlarmLevel: input.wakeupAlarmLevel ?? 0,
+              wakeupAlarmLeadMinutes: input.wakeupAlarmLeadMinutes ?? 30,
               timezoneTZ: input.timezoneTZ,
               updatedAt: new Date(),
             },
