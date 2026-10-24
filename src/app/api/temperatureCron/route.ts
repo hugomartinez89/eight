@@ -123,6 +123,30 @@ export async function adjustTemperature(testMode?: TestMode): Promise<void> {
 
         const now = testMode?.enabled ? testMode.currentTime : new Date();
 
+        if (!testMode?.enabled) {
+          await db
+            .update(users)
+            .set({ lastCronRunAt: new Date() })
+            .where(eq(users.email, profile.users.email));
+        }
+
+        // Vacation mode: leave the pod alone until it ends (auto-resumes after vacationUntil)
+        if (profile.users.vacationMode) {
+          const until = profile.users.vacationUntil;
+          if (until && now >= until) {
+            if (!testMode?.enabled) {
+              await db
+                .update(users)
+                .set({ vacationMode: false, vacationUntil: null })
+                .where(eq(users.email, profile.users.email));
+            }
+            console.log(`Vacation mode ended for user ${profile.users.email}, resuming schedule`);
+          } else {
+            console.log(`Vacation mode active for user ${profile.users.email}, skipping`);
+            continue;
+          }
+        }
+
         if (!testMode?.enabled && now.getTime() > token.eightExpiresAtPosix) {
           token = await obtainFreshAccessToken(
             token.eightRefreshToken,

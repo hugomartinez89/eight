@@ -50,6 +50,11 @@ In the following, I will explain how to self-host this webapp on Vercel so that 
     - Click "Save"
 
 
+11. Install it on your phone (recommended)
+    - On Android, open your app URL in Chrome → menu (⋮) → **Install app**. On iPhone, Safari → Share → **Add to Home Screen**.
+    - Sign in once. The app keeps you signed in on that device (1-year rolling session plus a device token as a backup).
+    - Everything you need to set up the cron job again (URL, secret, header) is in **Settings → Cron job**, along with the approved emails and **Vacation mode**.
+
 Enjoy! That's it!
 
 ## How to Upgrade from an older Version?

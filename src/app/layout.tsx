@@ -1,7 +1,7 @@
 import "~/styles/globals.css";
 
 import { Inter as FontSans } from "next/font/google";
-import { type Metadata } from "next";
+import { type Metadata, type Viewport } from "next";
 import { TRPCReactProvider } from "~/trpc/react";
 import { ThemeProvider } from "~/components/themeProvider";
 import { cn } from "~/lib/utils";
@@ -15,9 +15,27 @@ export const metadata: Metadata = {
   title: "Hugo's Pod Hub | Smart Scheduling & Pod Manager",
   description:
     "Smart scheduling, wake-up thermal alarm, and direct mattress controls for Eight Sleep without subscriptions.",
+  applicationName: "Pod Hub",
+  appleWebApp: {
+    capable: true,
+    title: "Pod Hub",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: { telephone: false },
   icons: [
     { rel: "icon", url: "/favicon.svg", type: "image/svg+xml" },
-    { rel: "apple-touch-icon", url: "/icon.svg" },
+    { rel: "icon", url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    { rel: "apple-touch-icon", url: "/icon-192.png" },
+  ],
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#020617" },
   ],
 };
 

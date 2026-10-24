@@ -1,28 +1,29 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useForm, Controller, type Control } from "react-hook-form";
+import { useForm, Controller, type Control, type FieldError } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiR } from "~/trpc/react";
 import TimezoneSelect, { allTimezones } from "react-timezone-select";
+import { useToast } from "~/components/ui/toast";
+import { Skeleton } from "~/components/ui/card";
+import { useSchedule } from "~/components/useSchedule";
+import { PresetSheet } from "~/components/presetsPanel";
+import { matchPreset, type ScheduleValues } from "~/lib/presets";
 import {
   CalendarDays,
   Clock,
   Moon,
   Sun,
-  Flame,
-  Snowflake,
   Trash2,
   Save,
-  CheckCircle2,
-  AlertCircle,
   BellRing,
-  Sparkles,
   Plus,
   Minus,
   Globe,
   Bookmark,
-  ChevronDown,
+  BookmarkPlus,
+  Undo2,
 } from "lucide-react";
 
 const temperatureProfileSchema = z.object({
@@ -45,97 +46,99 @@ const temperatureProfileSchema = z.object({
 
 type TemperatureProfileForm = z.infer<typeof temperatureProfileSchema>;
 
-interface ProfilePreset {
-  name: string;
-  desc: string;
-  values: {
-    bedTime: string;
-    wakeupTime: string;
-    midStageSleepLevelStartTime: string;
-    finalSleepLevelStartTime: string;
-    initialSleepLevel: number;
-    midStageSleepLevel: number;
-    finalSleepLevel: number;
-    wakeupAlarmEnabled: boolean;
-    wakeupAlarmLevel: number;
-    wakeupAlarmLeadMinutes: number;
+type LevelField = "initialSleepLevel" | "midStageSleepLevel" | "finalSleepLevel" | "wakeupAlarmLevel";
+
+/** Form values (UI scale -10..10) → API/preset values (-100..100) */
+function formToSchedule(data: TemperatureProfileForm): ScheduleValues {
+  return {
+    bedTime: data.bedTime,
+    wakeupTime: data.wakeupTime,
+    midStageSleepLevelStartTime: data.midStageSleepLevelStartTime,
+    finalSleepLevelStartTime: data.finalSleepLevelStartTime,
+    initialSleepLevel: Math.round(data.initialSleepLevel * 10),
+    midStageSleepLevel: Math.round(data.midStageSleepLevel * 10),
+    finalSleepLevel: Math.round(data.finalSleepLevel * 10),
+    wakeupAlarmEnabled: data.wakeupAlarmEnabled,
+    wakeupAlarmLevel: Math.round(data.wakeupAlarmLevel * 10),
+    wakeupAlarmLeadMinutes: data.wakeupAlarmLeadMinutes,
   };
 }
 
-const DEFAULT_PRESETS: ProfilePreset[] = [
-  {
-    name: "Hugo's Signature",
-    desc: "Optimal balance: cool start, deep chill, gentle sunrise",
-    values: {
-      bedTime: "22:00",
-      wakeupTime: "06:30",
-      midStageSleepLevelStartTime: "23:00",
-      finalSleepLevelStartTime: "05:00",
-      initialSleepLevel: -2,
-      midStageSleepLevel: -3,
-      finalSleepLevel: -1,
-      wakeupAlarmEnabled: true,
-      wakeupAlarmLevel: 3,
-      wakeupAlarmLeadMinutes: 30,
-    },
-  },
-  {
-    name: "Hugo's Deep Freeze",
-    desc: "Summer / Hot Sleeper: intense cooling throughout the night",
-    values: {
-      bedTime: "22:30",
-      wakeupTime: "07:00",
-      midStageSleepLevelStartTime: "23:30",
-      finalSleepLevelStartTime: "05:30",
-      initialSleepLevel: -4,
-      midStageSleepLevel: -5,
-      finalSleepLevel: -3,
-      wakeupAlarmEnabled: true,
-      wakeupAlarmLevel: 2,
-      wakeupAlarmLeadMinutes: 20,
-    },
-  },
-  {
-    name: "Hugo's Cozy Winter",
-    desc: "Winter warmth: comfortable warming start & neutral sleep",
-    values: {
-      bedTime: "22:00",
-      wakeupTime: "06:30",
-      midStageSleepLevelStartTime: "23:00",
-      finalSleepLevelStartTime: "05:00",
-      initialSleepLevel: 2,
-      midStageSleepLevel: 0,
-      finalSleepLevel: 0,
-      wakeupAlarmEnabled: true,
-      wakeupAlarmLevel: 4,
-      wakeupAlarmLeadMinutes: 30,
-    },
-  },
-  {
-    name: "Hugo's Weekend Rest",
-    desc: "Late bedtime and sleep-in wake time",
-    values: {
-      bedTime: "23:30",
-      wakeupTime: "08:30",
-      midStageSleepLevelStartTime: "00:30",
-      finalSleepLevelStartTime: "07:00",
-      initialSleepLevel: -2,
-      midStageSleepLevel: -3,
-      finalSleepLevel: -2,
-      wakeupAlarmEnabled: true,
-      wakeupAlarmLevel: 3,
-      wakeupAlarmLeadMinutes: 30,
-    },
-  },
-];
+// Slider with [+] and [-] precision buttons. Lives outside the form component so
+// it isn't re-created (and the slider re-mounted) on every render.
+const StepperSlider: React.FC<{
+  name: LevelField;
+  label: string;
+  control: Control<TemperatureProfileForm>;
+  info?: string;
+  error?: FieldError;
+}> = ({ name, label, control, info, error }) => (
+  <Controller
+    name={name}
+    control={control}
+    render={({ field: { onChange, value } }) => (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label htmlFor={name} className="text-xs font-bold text-slate-700 dark:text-slate-300">
+            {label}
+          </label>
+          <span
+            className={`rounded-xl px-2.5 py-0.5 text-xs font-black shadow-sm ${
+              value > 0
+                ? "bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800"
+                : value < 0
+                ? "bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 dark:border-sky-800"
+                : "bg-slate-100 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+            }`}
+          >
+            {value > 0 ? `+${value}` : value}
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-2.5">
+          <button
+            type="button"
+            aria-label={`Decrease ${label}`}
+            onClick={() => onChange(Math.max(-10, value - 1))}
+            disabled={value <= -10}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition active:scale-95 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+
+          <input
+            id={name}
+            type="range"
+            min="-10"
+            max="10"
+            step="1"
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-gradient-to-r from-cyan-500 via-slate-300 to-amber-500 accent-indigo-600 dark:via-slate-700"
+          />
+
+          <button
+            type="button"
+            aria-label={`Increase ${label}`}
+            onClick={() => onChange(Math.min(10, value + 1))}
+            disabled={value >= 10}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition active:scale-95 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+        {info && <p className="text-[11px] text-slate-500 dark:text-slate-400">{info}</p>}
+        {error && <p className="text-xs text-rose-500">{error.message}</p>}
+      </div>
+    )}
+  />
+);
 
 export const TemperatureProfileForm: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isExistingProfile, setIsExistingProfile] = useState(false);
+  const toast = useToast();
   const [sleepDurationError, setSleepDurationError] = useState<string | null>(null);
-  const [saveSuccessMessage, setSaveSuccessMessage] = useState<boolean>(false);
   const [showTimezoneSelect, setShowTimezoneSelect] = useState<boolean>(false);
-  const [activePresetName, setActivePresetName] = useState<string>("Hugo's Signature");
+  const [presetSheetValues, setPresetSheetValues] = useState<ScheduleValues | null>(null);
 
   // Auto-detect browser timezone
   const detectedTimezone =
@@ -150,7 +153,8 @@ export const TemperatureProfileForm: React.FC = () => {
     watch,
     setValue,
     reset,
-    formState: { errors },
+    getValues,
+    formState: { errors, isDirty },
   } = useForm<TemperatureProfileForm>({
     resolver: zodResolver(temperatureProfileSchema),
     defaultValues: {
@@ -176,6 +180,7 @@ export const TemperatureProfileForm: React.FC = () => {
   const wakeupAlarmLeadMinutes = watch("wakeupAlarmLeadMinutes");
   const wakeupAlarmLevel = watch("wakeupAlarmLevel");
   const timezone = watch("timezone");
+  const allValues = watch();
 
   const [sleepInfo, setSleepInfo] = useState({
     duration: "",
@@ -184,43 +189,27 @@ export const TemperatureProfileForm: React.FC = () => {
   });
 
   const utils = apiR.useUtils();
-  const getUserTemperatureProfileQuery = apiR.user.getUserTemperatureProfile.useQuery();
+  const { profile, profileQuery, allPresets, activePreset } = useSchedule();
+  const isExistingProfile = !!profile;
+  const isLoading = profileQuery.isLoading;
 
+  // Load the saved schedule as the form's clean baseline (so "unsaved changes" is accurate).
   useEffect(() => {
-    if (getUserTemperatureProfileQuery.isSuccess) {
-      const profile = getUserTemperatureProfileQuery.data;
-      setValue("bedTime", profile.bedTime.slice(0, 5));
-      setValue("wakeupTime", profile.wakeupTime.slice(0, 5));
-      setValue(
-        "midStageSleepLevelStartTime",
-        profile.midStageSleepLevelStartTime
-          ? profile.midStageSleepLevelStartTime.slice(0, 5)
-          : "23:00",
-      );
-      setValue(
-        "finalSleepLevelStartTime",
-        profile.finalSleepLevelStartTime ? profile.finalSleepLevelStartTime.slice(0, 5) : "05:00",
-      );
-      setValue("initialSleepLevel", profile.initialSleepLevel / 10);
-      setValue("midStageSleepLevel", profile.midStageSleepLevel / 10);
-      setValue("finalSleepLevel", profile.finalSleepLevel / 10);
-      setValue("wakeupAlarmEnabled", profile.wakeupAlarmEnabled ?? false);
-      setValue("wakeupAlarmLevel", (profile.wakeupAlarmLevel ?? 30) / 10);
-      setValue("wakeupAlarmLeadMinutes", profile.wakeupAlarmLeadMinutes ?? 30);
-      setValue("timezone", { value: profile.timezoneTZ || detectedTimezone });
-      setIsExistingProfile(true);
-      setIsLoading(false);
-    } else if (getUserTemperatureProfileQuery.isError) {
-      setIsExistingProfile(false);
-      setIsLoading(false);
-    }
-  }, [
-    getUserTemperatureProfileQuery.isSuccess,
-    getUserTemperatureProfileQuery.isError,
-    getUserTemperatureProfileQuery.data,
-    setValue,
-    detectedTimezone,
-  ]);
+    if (!profile) return;
+    reset({
+      bedTime: profile.bedTime.slice(0, 5),
+      wakeupTime: profile.wakeupTime.slice(0, 5),
+      midStageSleepLevelStartTime: profile.midStageSleepLevelStartTime?.slice(0, 5) ?? "23:00",
+      finalSleepLevelStartTime: profile.finalSleepLevelStartTime?.slice(0, 5) ?? "05:00",
+      initialSleepLevel: profile.initialSleepLevel / 10,
+      midStageSleepLevel: profile.midStageSleepLevel / 10,
+      finalSleepLevel: profile.finalSleepLevel / 10,
+      wakeupAlarmEnabled: profile.wakeupAlarmEnabled ?? false,
+      wakeupAlarmLevel: (profile.wakeupAlarmLevel ?? 30) / 10,
+      wakeupAlarmLeadMinutes: profile.wakeupAlarmLeadMinutes ?? 30,
+      timezone: { value: profile.timezoneTZ || detectedTimezone },
+    });
+  }, [profile, reset, detectedTimezone]);
 
   useEffect(() => {
     if (bedTime && wakeupTime) {
@@ -269,144 +258,45 @@ export const TemperatureProfileForm: React.FC = () => {
   const updateProfileMutation =
     apiR.user.updateUserTemperatureProfile.useMutation({
       onSuccess: async () => {
-        setIsExistingProfile(true);
-        setSaveSuccessMessage(true);
         await utils.user.getUserTemperatureProfile.invalidate();
-        setTimeout(() => setSaveSuccessMessage(false), 3000);
+        toast("Schedule saved");
       },
-      onError: (error) => {
-        console.error("Failed to update profile:", error.message);
-      },
+      onError: (error) => toast(error.message, "error"),
     });
 
   const deleteProfileMutation =
     apiR.user.deleteUserTemperatureProfile.useMutation({
       onSuccess: async () => {
-        setIsExistingProfile(false);
         reset();
         await utils.user.getUserTemperatureProfile.invalidate();
+        toast("Schedule cleared", "info");
       },
+      onError: (error) => toast(error.message, "error"),
     });
 
   const onSubmit = (data: TemperatureProfileForm) => {
     if (sleepDurationError) return;
 
     const formatTimeForAPI = (time: string) => `${time}:00.000000`;
+    const values = formToSchedule(data);
 
-    const mutationData = {
-      bedTime: formatTimeForAPI(data.bedTime),
-      wakeupTime: formatTimeForAPI(data.wakeupTime),
-      midStageSleepLevelStartTime: formatTimeForAPI(data.midStageSleepLevelStartTime),
-      finalSleepLevelStartTime: formatTimeForAPI(data.finalSleepLevelStartTime),
-      initialSleepLevel: Math.round(data.initialSleepLevel * 10),
-      midStageSleepLevel: Math.round(data.midStageSleepLevel * 10),
-      finalSleepLevel: Math.round(data.finalSleepLevel * 10),
-      wakeupAlarmEnabled: data.wakeupAlarmEnabled,
-      wakeupAlarmLevel: Math.round(data.wakeupAlarmLevel * 10),
-      wakeupAlarmLeadMinutes: data.wakeupAlarmLeadMinutes,
+    updateProfileMutation.mutate({
+      ...values,
+      bedTime: formatTimeForAPI(values.bedTime),
+      wakeupTime: formatTimeForAPI(values.wakeupTime),
+      midStageSleepLevelStartTime: formatTimeForAPI(values.midStageSleepLevelStartTime),
+      finalSleepLevelStartTime: formatTimeForAPI(values.finalSleepLevelStartTime),
       timezoneTZ: data.timezone.value,
-    };
-
-    updateProfileMutation.mutate(mutationData);
+    });
   };
-
-  const applyPreset = (preset: ProfilePreset) => {
-    setActivePresetName(preset.name);
-    setValue("bedTime", preset.values.bedTime, { shouldDirty: true });
-    setValue("wakeupTime", preset.values.wakeupTime, { shouldDirty: true });
-    setValue("midStageSleepLevelStartTime", preset.values.midStageSleepLevelStartTime, { shouldDirty: true });
-    setValue("finalSleepLevelStartTime", preset.values.finalSleepLevelStartTime, { shouldDirty: true });
-    setValue("initialSleepLevel", preset.values.initialSleepLevel, { shouldDirty: true });
-    setValue("midStageSleepLevel", preset.values.midStageSleepLevel, { shouldDirty: true });
-    setValue("finalSleepLevel", preset.values.finalSleepLevel, { shouldDirty: true });
-    setValue("wakeupAlarmEnabled", preset.values.wakeupAlarmEnabled, { shouldDirty: true });
-    setValue("wakeupAlarmLevel", preset.values.wakeupAlarmLevel, { shouldDirty: true });
-    setValue("wakeupAlarmLeadMinutes", preset.values.wakeupAlarmLeadMinutes, { shouldDirty: true });
-  };
-
-  // Upgraded Slider with [+] and [-] precision buttons
-  const StepperSlider: React.FC<{
-    name: "initialSleepLevel" | "midStageSleepLevel" | "finalSleepLevel" | "wakeupAlarmLevel";
-    label: string;
-    control: Control<TemperatureProfileForm>;
-    info?: string;
-  }> = ({ name, label, control, info }) => (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <label htmlFor={name} className="text-xs font-bold text-slate-700 dark:text-slate-300">
-          {label}
-        </label>
-        <Controller
-          name={name}
-          control={control}
-          render={({ field: { value } }) => (
-            <span
-              className={`rounded-xl px-2.5 py-0.5 text-xs font-black shadow-sm ${
-                value > 0
-                  ? "bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-800"
-                  : value < 0
-                  ? "bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950/80 dark:text-sky-200 dark:border-sky-800"
-                  : "bg-slate-100 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
-              }`}
-            >
-              {value > 0 ? `+${value}` : value}
-            </span>
-          )}
-        />
-      </div>
-
-      <Controller
-        name={name}
-        control={control}
-        render={({ field: { onChange, value } }) => (
-          <div className="flex items-center space-x-2.5">
-            {/* Minus Button */}
-            <button
-              type="button"
-              onClick={() => onChange(Math.max(-10, value - 1))}
-              disabled={value <= -10}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:scale-105 active:scale-95 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-
-            {/* Slider with colored track */}
-            <input
-              type="range"
-              min="-10"
-              max="10"
-              step="1"
-              value={value}
-              onChange={(e) => onChange(Number(e.target.value))}
-              className="h-2.5 w-full cursor-pointer appearance-none rounded-lg bg-gradient-to-r from-cyan-500 via-slate-300 to-amber-500 accent-indigo-600 dark:via-slate-700"
-            />
-
-            {/* Plus Button */}
-            <button
-              type="button"
-              onClick={() => onChange(Math.min(10, value + 1))}
-              disabled={value >= 10}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:scale-105 active:scale-95 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-      />
-      {info && <p className="text-[11px] text-slate-500 dark:text-slate-400">{info}</p>}
-      {errors[name] && (
-        <p className="text-xs text-rose-500">{errors[name]?.message}</p>
-      )}
-    </div>
-  );
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl dark:border-slate-800/80 dark:bg-slate-900/80">
-        <p className="text-sm text-slate-400">Loading profile data...</p>
-      </div>
-    );
+    return <Skeleton className="h-96" />;
   }
+
+  // Which preset the form currently matches (updates live while editing)
+  const formPreset = allValues.bedTime ? matchPreset(formToSchedule(allValues), allPresets) : null;
+  const shownPreset = isDirty ? formPreset : activePreset;
 
   // Pre-heating calculation
   const [bH = 22, bM = 0] = bedTime.split(":").map(Number);
@@ -422,58 +312,30 @@ export const TemperatureProfileForm: React.FC = () => {
   ).padStart(2, "0")}`;
 
   return (
-    <div className="w-full rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl transition-colors dark:border-slate-800/80 dark:bg-slate-900/90">
+    <div className="w-full rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl transition-colors dark:border-slate-800/80 dark:bg-slate-900/70">
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-5 flex items-start justify-between gap-3">
         <div className="flex items-center space-x-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20">
             <CalendarDays className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
               Schedule &amp; Stages
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Personalized night thermal choreography
+            <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+              <Bookmark className="h-3 w-3 text-indigo-500" />
+              {shownPreset ? shownPreset.name : isExistingProfile || isDirty ? "Custom schedule" : "Not saved yet"}
             </p>
           </div>
         </div>
 
-        {saveSuccessMessage && (
-          <span className="inline-flex items-center space-x-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Profile Saved</span>
+        {isDirty && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+            Unsaved
           </span>
         )}
-      </div>
-
-      {/* Preset Profiles Selector Chips */}
-      <div className="mb-6 space-y-2 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-800/40">
-        <div className="flex items-center justify-between">
-          <span className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-            <Bookmark className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Hugo&apos;s Profile Presets</span>
-          </span>
-          <span className="text-[11px] text-slate-400">1-click routine loader</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {DEFAULT_PRESETS.map((preset) => (
-            <button
-              key={preset.name}
-              type="button"
-              onClick={() => applyPreset(preset)}
-              className={`rounded-xl border p-2 text-left transition-all ${
-                activePresetName === preset.name
-                  ? "border-indigo-500 bg-indigo-50/80 font-bold text-indigo-900 shadow-sm dark:border-indigo-500 dark:bg-indigo-950/60 dark:text-indigo-200"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-            >
-              <div className="text-xs font-extrabold truncate">{preset.name}</div>
-              <div className="text-[10px] text-slate-400 line-clamp-1">{preset.desc}</div>
-            </button>
-          ))}
-        </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -490,7 +352,7 @@ export const TemperatureProfileForm: React.FC = () => {
               {...register("bedTime")}
               type="time"
               id="bedTime"
-              className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="mt-2 block h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base font-bold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             {errors.bedTime && (
               <p className="mt-1 text-xs text-rose-500">{errors.bedTime.message}</p>
@@ -508,7 +370,7 @@ export const TemperatureProfileForm: React.FC = () => {
               {...register("wakeupTime")}
               type="time"
               id="wakeupTime"
-              className="mt-2 block w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="mt-2 block h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base font-bold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
             {errors.wakeupTime && (
               <p className="mt-1 text-xs text-rose-500">{errors.wakeupTime.message}</p>
@@ -518,7 +380,7 @@ export const TemperatureProfileForm: React.FC = () => {
 
         {/* Total Sleep Window & Preheat Banner */}
         <div
-          className={`flex items-center justify-between rounded-2xl border p-3 text-xs ${
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-2xl border p-3 text-xs ${
             sleepDurationError
               ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
               : "border-indigo-100 bg-indigo-50/80 text-indigo-900 dark:border-indigo-950/60 dark:bg-indigo-950/30 dark:text-indigo-200"
@@ -537,17 +399,17 @@ export const TemperatureProfileForm: React.FC = () => {
 
         {/* Simplified Auto-Detected Timezone */}
         <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3 text-xs dark:border-slate-800 dark:bg-slate-800/30">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-slate-600 dark:text-slate-400">
-              <Globe className="h-4 w-4 text-indigo-500" />
-              <span>
-                Timezone: <strong className="text-slate-900 dark:text-white">{timezone?.value || detectedTimezone}</strong> (Auto-synced)
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center space-x-2 text-slate-600 dark:text-slate-400">
+              <Globe className="h-4 w-4 shrink-0 text-indigo-500" />
+              <span className="truncate">
+                Timezone: <strong className="text-slate-900 dark:text-white">{timezone?.value || detectedTimezone}</strong>
               </span>
             </div>
             <button
               type="button"
               onClick={() => setShowTimezoneSelect(!showTimezoneSelect)}
-              className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+              className="shrink-0 px-1 py-1 text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
             >
               {showTimezoneSelect ? "Done" : "Change"}
             </button>
@@ -586,6 +448,7 @@ export const TemperatureProfileForm: React.FC = () => {
               name="initialSleepLevel"
               label="Stage 1: Bedtime & Pre-Heat Level"
               control={control}
+              error={errors.initialSleepLevel}
               info={`Activates at pre-heat (${preHeatTimeStr}) and continues into bedtime (${bedTime})`}
             />
           </div>
@@ -595,16 +458,17 @@ export const TemperatureProfileForm: React.FC = () => {
               name="midStageSleepLevel"
               label="Stage 2: Mid-Stage Sleep Level"
               control={control}
+              error={errors.midStageSleepLevel}
             />
             <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-3 dark:border-slate-700/60">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+              <label htmlFor="midStageSleepLevelStartTime" className="text-xs font-bold text-slate-600 dark:text-slate-400">
                 Mid-Stage Start Time:
-              </span>
+              </label>
               <input
                 {...register("midStageSleepLevelStartTime")}
                 type="time"
                 id="midStageSleepLevelStartTime"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
           </div>
@@ -614,16 +478,17 @@ export const TemperatureProfileForm: React.FC = () => {
               name="finalSleepLevel"
               label="Stage 3: Final Sleep Level"
               control={control}
+              error={errors.finalSleepLevel}
             />
             <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-3 dark:border-slate-700/60">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+              <label htmlFor="finalSleepLevelStartTime" className="text-xs font-bold text-slate-600 dark:text-slate-400">
                 Final Stage Start Time:
-              </span>
+              </label>
               <input
                 {...register("finalSleepLevelStartTime")}
                 type="time"
                 id="finalSleepLevelStartTime"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white"
               />
             </div>
           </div>
@@ -646,13 +511,14 @@ export const TemperatureProfileForm: React.FC = () => {
               </div>
             </div>
 
-            <label className="relative inline-flex cursor-pointer items-center">
+            <label className="relative inline-flex cursor-pointer items-center p-1">
               <input
                 type="checkbox"
+                aria-label="Enable wake-up alarm"
                 {...register("wakeupAlarmEnabled")}
                 className="peer sr-only"
               />
-              <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:bg-slate-700"></div>
+              <div className="peer h-7 w-12 rounded-full bg-slate-200 after:absolute after:left-[6px] after:top-[6px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-500 peer-checked:after:translate-x-5 peer-checked:after:border-white peer-focus:outline-none dark:bg-slate-700"></div>
             </label>
           </div>
 
@@ -662,6 +528,7 @@ export const TemperatureProfileForm: React.FC = () => {
                 name="wakeupAlarmLevel"
                 label="Wake-Up Target Temperature"
                 control={control}
+                error={errors.wakeupAlarmLevel}
                 info="Target thermal level during alarm window (e.g. +3 to gently warm you awake)"
               />
 
@@ -676,14 +543,13 @@ export const TemperatureProfileForm: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Preset Chips */}
-                <div className="flex space-x-2">
+                <div className="flex gap-2">
                   {[10, 15, 20, 30, 45].map((mins) => (
                     <button
                       key={mins}
                       type="button"
                       onClick={() => setValue("wakeupAlarmLeadMinutes", mins, { shouldDirty: true })}
-                      className={`flex-1 rounded-xl py-1.5 text-xs font-bold transition ${
+                      className={`h-10 flex-1 rounded-xl text-xs font-bold transition active:scale-95 ${
                         (wakeupAlarmLeadMinutes ?? 30) === mins
                           ? "bg-amber-500 text-white shadow-sm"
                           : "bg-white/80 text-slate-600 hover:bg-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -703,39 +569,70 @@ export const TemperatureProfileForm: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          {isExistingProfile ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm("Are you sure you want to reset your schedule?")) {
-                  deleteProfileMutation.mutate();
-                }
-              }}
-              disabled={deleteProfileMutation.isPending}
-              className="inline-flex items-center space-x-1.5 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs font-bold text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/60"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>{deleteProfileMutation.isPending ? "Resetting..." : "Reset"}</span>
-            </button>
-          ) : <div />}
-
+        <div className="space-y-2 pt-2">
           <button
             type="submit"
-            disabled={updateProfileMutation.isPending || !!sleepDurationError}
-            className="inline-flex items-center space-x-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 px-7 py-3 text-xs font-extrabold text-white shadow-xl shadow-indigo-500/25 transition-all hover:from-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
+            disabled={updateProfileMutation.isPending || !!sleepDurationError || (isExistingProfile && !isDirty)}
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-sm font-extrabold text-white shadow-lg shadow-indigo-500/25 transition-all active:scale-[0.98] disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             <span>
               {updateProfileMutation.isPending
-                ? "Saving Routine..."
+                ? "Saving…"
                 : isExistingProfile
-                ? "Update Schedule"
-                : "Save Schedule"}
+                ? isDirty
+                  ? "Save changes"
+                  : "Saved"
+                : "Save schedule"}
             </span>
           </button>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!!sleepDurationError}
+              onClick={() => setPresetSheetValues(formToSchedule(getValues()))}
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/70 text-xs font-bold text-indigo-700 transition active:scale-95 disabled:opacity-50 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              Save as preset
+            </button>
+
+            {isDirty && isExistingProfile && (
+              <button
+                type="button"
+                onClick={() => reset()}
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 px-4 text-xs font-bold text-slate-600 transition active:scale-95 dark:border-slate-700 dark:text-slate-300"
+              >
+                <Undo2 className="h-4 w-4" />
+                Discard
+              </button>
+            )}
+
+            {isExistingProfile && !isDirty && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Clear your schedule? The pod will stop being automated.")) {
+                    deleteProfileMutation.mutate();
+                  }
+                }}
+                disabled={deleteProfileMutation.isPending}
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-2xl border border-red-200 px-4 text-xs font-bold text-red-700 transition active:scale-95 disabled:opacity-50 dark:border-red-950 dark:text-red-300"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </form>
+
+      <PresetSheet
+        open={presetSheetValues !== null}
+        values={presetSheetValues}
+        onClose={() => setPresetSheetValues(null)}
+      />
     </div>
   );
 };

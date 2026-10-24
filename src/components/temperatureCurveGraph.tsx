@@ -157,7 +157,7 @@ export const TemperatureCurveGraph: React.FC = () => {
   const activePointData = selectedPoint !== null ? coords[selectedPoint] : null;
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl transition-all dark:border-slate-800/80 dark:bg-slate-900/90">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl transition-all dark:border-slate-800/80 dark:bg-slate-900/70">
       {/* Card Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2.5">

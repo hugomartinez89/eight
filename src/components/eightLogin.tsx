@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiR } from "~/trpc/react";
-import { LogIn, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { setDeviceToken } from "~/lib/clientStorage";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -30,7 +31,8 @@ export const EightLoginDialog: React.FC<EightLoginDialogProps> = ({
   });
 
   const loginMutation = apiR.user.login.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setDeviceToken(data.deviceToken);
       onLoginSuccess();
     },
   });
@@ -52,17 +54,19 @@ export const EightLoginDialog: React.FC<EightLoginDialogProps> = ({
           Hugo&apos;s Pod Hub
         </h2>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Sign in with your Eight Sleep account
+          Sign in once with your Eight Sleep account. You&apos;ll stay signed in on this device.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} method="post" action="#" className="space-y-4">
         <div>
           <input
             {...register("email")}
             type="email"
             id="email"
-            autoComplete="email"
+            inputMode="email"
+            autoCapitalize="none"
+            autoComplete="username"
             placeholder="Account Email"
             className="block w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:focus:bg-slate-800/90"
           />

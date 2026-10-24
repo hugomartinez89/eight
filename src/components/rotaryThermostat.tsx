@@ -170,7 +170,7 @@ export const RotaryThermostat: React.FC = () => {
   const knobY = 120 + (radius - 2) * Math.sin(needleRad);
 
   return (
-    <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-2xl backdrop-blur-2xl transition-all duration-300 dark:border-slate-800/80 dark:bg-slate-900/90">
+    <div className="relative flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl transition-all duration-300 dark:border-slate-800/80 dark:bg-slate-900/70">
       {/* Dynamic Background Glow */}
       <div
         className={`pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full blur-3xl transition-opacity duration-700 ${
